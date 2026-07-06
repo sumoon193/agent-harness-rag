@@ -8,10 +8,10 @@ __pycache__/
 *.py[cod]
 
 .uv-cache/
-storage/
-runtime_storage/
-runtime_pycache/
-runtime_pytest/
+/storage/
+/runtime_storage/
+/runtime_pycache/
+/runtime_pytest/
 .codex-*.log
 
 frontend/dist/
