@@ -1,0 +1,91 @@
+"""
+LangGraph StateGraph 定义。
+
+定义 Agent Graph 的结构和编译。
+"""
+from __future__ import annotations
+
+import logging
+
+from langgraph.graph import END, START, StateGraph
+
+from app.services.agent.run_manager import AgentRunManager
+from app.services.graph.edges import (
+    after_approval_route,
+    after_evidence_route,
+    after_intent_route,
+    after_plan_route,
+)
+from app.services.graph.nodes import (
+    answer_node,
+    approval_gate_node,
+    evidence_score_node,
+    fact_check_node,
+    finalize_node,
+    intent_node,
+    plan_node,
+    query_rewrite_node,
+    retrieve_node,
+    tool_execute_node,
+)
+from app.services.graph.state import AgentGraphState
+from app.services.retrieval.hybrid import HybridRetriever
+
+logger = logging.getLogger(__name__)
+
+
+def create_agent_graph(
+    run_manager: AgentRunManager,
+    hybrid_retriever: HybridRetriever,
+    answer_service: object | None = None,
+) -> StateGraph:
+    """
+    创建 Agent Graph。
+
+    Args:
+        run_manager: Agent Run Manager
+        hybrid_retriever: 混合检索器
+
+    Returns:
+        编译后的 StateGraph
+    """
+    logger.info("creating_agent_graph")
+
+    # 创建 graph
+    graph = StateGraph(AgentGraphState)
+
+    # 添加节点（使用 partial 绑定依赖）
+    from functools import partial
+
+    graph.add_node("intent", partial(intent_node, run_manager=run_manager))
+    graph.add_node("query_rewrite", partial(query_rewrite_node, run_manager=run_manager))
+    graph.add_node("retrieve", partial(retrieve_node, run_manager=run_manager, hybrid_retriever=hybrid_retriever))
+    graph.add_node("evidence_score", partial(evidence_score_node, run_manager=run_manager))
+    graph.add_node("plan", partial(plan_node, run_manager=run_manager))
+    graph.add_node("approval_gate", partial(approval_gate_node, run_manager=run_manager))
+    graph.add_node("tool_execute", partial(tool_execute_node, run_manager=run_manager))
+    graph.add_node("answer", partial(answer_node, run_manager=run_manager, answer_service=answer_service))
+    graph.add_node("fact_check", partial(fact_check_node, run_manager=run_manager))
+    graph.add_node("finalize", partial(finalize_node, run_manager=run_manager))
+
+    # 添加边
+    graph.add_edge(START, "intent")
+    graph.add_conditional_edges("intent", after_intent_route)
+    graph.add_edge("query_rewrite", "retrieve")
+    graph.add_edge("retrieve", "evidence_score")
+    graph.add_conditional_edges("evidence_score", after_evidence_route)
+    graph.add_conditional_edges("plan", after_plan_route)
+    graph.add_conditional_edges("approval_gate", after_approval_route)
+    graph.add_edge("tool_execute", "answer")
+    graph.add_edge("answer", "fact_check")
+    graph.add_edge("fact_check", "finalize")
+    graph.add_edge("finalize", END)
+
+    # V1 运行时仍使用进程内 checkpoint；Postgres saver 需要异步生命周期托管。
+    from langgraph.checkpoint.memory import MemorySaver
+    checkpointer = MemorySaver()
+
+    compiled = graph.compile(checkpointer=checkpointer)
+
+    logger.info("agent_graph_created")
+    return compiled
