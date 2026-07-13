@@ -62,3 +62,15 @@ class DocumentStatusResponse(BaseModel):
     updated_at: datetime = Field(description="最后更新时间（UTC）")
 
     model_config = {"from_attributes": True}
+
+
+class DocumentVersion(BaseModel):
+    """不可变文档版本；active 切换不删除历史版本。"""
+
+    id: str = Field(description="版本 ID，前缀 docver_")
+    document_id: str
+    version: int = Field(ge=1)
+    content_hash: str
+    is_active: bool = True
+    supersedes_version_id: str | None = None
+    created_at: datetime

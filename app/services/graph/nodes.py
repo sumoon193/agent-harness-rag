@@ -375,7 +375,7 @@ async def tool_execute_node(
 
         executed_tool = await run_manager.execute_approved_tool(
             run_id=run_id,
-            approval_id=pending_approval_id,
+            approval_id=approval_request.id,
             user_context=user
         )
         tool_results.append(executed_tool)

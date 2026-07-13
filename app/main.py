@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import approvals, agent_runs, documents, eval_runs, health
+from app.api import approvals, agent_runs, cases, documents, eval_runs, health, protocols
 from app.api.errors import app_error_handler, generic_error_handler
 from app.config import get_settings
 from app.core.exceptions import AppError
@@ -55,8 +55,8 @@ def create_app() -> FastAPI:
     """创建并配置 FastAPI 应用。"""
     app = FastAPI(
         title="EnterpriseMind Agent Harness RAG",
-        version="0.1.0",
-        description="HR 制度流程智能问答 API（V1）",
+        version="0.2.0",
+        description="企业制度型长流程 Agent Runtime 与执行治理 API",
         lifespan=lifespan,
     )
 
@@ -80,6 +80,8 @@ def create_app() -> FastAPI:
     app.include_router(agent_runs.router)
     app.include_router(approvals.router)
     app.include_router(eval_runs.router)
+    app.include_router(cases.router)
+    app.include_router(protocols.router)
 
     return app
 

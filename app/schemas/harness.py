@@ -65,6 +65,28 @@ class LoopEvent(BaseModel):
     )
 
 
+class RunBudget(BaseModel):
+    """限制 Agent 循环、工具、token、成本和墙钟时间。"""
+
+    max_iterations: int = Field(default=4, ge=1)
+    max_repairs: int = Field(default=2, ge=0)
+    max_tool_calls: int = Field(default=8, ge=0)
+    max_tokens: int = Field(default=16_000, ge=0)
+    max_cost: float = Field(default=10.0, ge=0.0)
+    max_duration_seconds: int = Field(default=300, ge=1)
+
+
+class LoopRunResult(BaseModel):
+    """受治理循环的确定性执行结果。"""
+
+    run_id: str
+    status: str
+    iterations_used: int = Field(ge=0)
+    repairs_used: int = Field(ge=0)
+    events: list[LoopEvent] = Field(default_factory=list)
+    output: dict[str, Any] = Field(default_factory=dict)
+
+
 class TimelineEvent(BaseModel):
     """Agent Run Artifact Timeline 事件。"""
 

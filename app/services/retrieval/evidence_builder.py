@@ -45,6 +45,9 @@ class EvidenceBuilder:
         for i, result in enumerate(results, start=1):
             citation = Citation(
                 id=i,
+                chunk_id=result.chunk_id,
+                document_id=result.document_id,
+                document_version=result.document_version,
                 document_name=result.document_name or result.document_id,
                 section=result.heading_path or result.section,
                 page=result.page,

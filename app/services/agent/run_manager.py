@@ -115,6 +115,17 @@ class AgentRunManager:
                     decided_by=approval.decided_by,
                     decided_at=approval.decided_at,
                     options=approval.options,
+                    revision=approval.revision,
+                    subject_hash=approval.subject_hash,
+                    requested_by=approval.requested_by,
+                    requested_at=approval.requested_at,
+                    expires_at=approval.expires_at,
+                    policy_version=approval.policy_version,
+                    execution_manifest_hash=approval.execution_manifest_hash,
+                    supersedes_approval_id=approval.supersedes_approval_id,
+                    revoked_by=approval.revoked_by,
+                    revoked_at=approval.revoked_at,
+                    revoke_reason=approval.revoke_reason,
                 )
 
     async def create_run(

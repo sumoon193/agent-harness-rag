@@ -59,6 +59,7 @@ class IngestionTask(BaseModel):
     """
     id: str = Field(default_factory=lambda: f"ing_{uuid.uuid4().hex[:12]}")
     document_id: str
+    document_version: str = "v1"
     filename: str
     mime_type: str
     storage_key: str = ""
