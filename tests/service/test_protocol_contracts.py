@@ -115,4 +115,3 @@ async def test_a2a_policy_research_returns_evidence_artifact_and_rejects_write_g
             text="创建一个 HR 工单并修改员工状态",
             user_context=_user(),
         )
-
