@@ -1,17 +1,18 @@
-# EnterpriseMind Agent Harness RAG - 通用 Agent 入口
+# EnterpriseMind Agent Runtime - 通用 Agent 入口
 
 这份文档是给 Codex、Claude、Cursor、Copilot 等通用 agent 的项目入口记忆。进入本项目后，先读本文件，再按文档索引读取对应规范。
 
 ## 项目定位
 
-EnterpriseMind Agent Harness RAG 不是普通 RAG Chatbot。
+EnterpriseMind 是面向企业制度型长流程的 Agent Runtime。HR Shared Service 是 Reference Application，不是平台边界。
 
 核心架构是：
 
 - **RAG 作为可信证据层**：负责文档入库、解析、分块、索引、检索、重排、引用和评测。
 - **Agent Harness 作为智能体执行治理层**：负责 Agent Run 生命周期、计划生成、工具注册、人工审批、checkpoint/resume、权限控制、审计日志和 trace。
+- **Runtime Kernel**：负责长期 Case、Event Store、Outbox、Projection、Lease、SideEffect Ledger 和 Durable Timer。
 
-V1 场景聚焦 HR 制度流程问答与任务执行，例如入职、转正、报销、请假和 HR 工单。
+主场景是新员工入职到转正的跨天 Case；报销和请假保留为轻量评测场景。
 
 ## 必读文档顺序
 
@@ -35,7 +36,7 @@ V1 场景聚焦 HR 制度流程问答与任务执行，例如入职、转正、�
 2. API 闭环：FastAPI 暴露上传、Agent Run、审批、评测接口，先接 fallback。
 3. 基础设施替换：PostgreSQL、Redis、Milvus、Elasticsearch、MinIO、Celery。
 4. 前端演示台：展示 evidence、plan、approval、tool result、trace、eval。
-5. V2 增强：GraphRAG / LightRAG、MCP、Phoenix 深度实验。
+5. Runtime 深化：长期 Case、MCP/A2A、Memory/Skill、Safety Eval 和 Artifact Timeline；GraphRAG 不进主链路。
 
 ## 硬性约束
 
@@ -145,10 +146,10 @@ V1 已完成；仍作为 V2 非目标保留：
 
 ## V1 收尾冻结说明（2026-06-01）
 
-用户已明确要求“完成 V1 收尾，V2 不拓展”。当前收尾口径如下：
+该段记录 2026-06-01 的 V1 历史收尾口径；2026-07-13 已按用户新决策完成 Runtime 深化，后文更新优先：
 
 - V1 主链路以 fallback demo、FastAPI API、前端控制台、Agent Harness 审批恢复、RAG evidence/citations、真实 Qwen adapter、Celery 入库、full-mode 基础设施 adapter、LangGraph 可选编排和 Phoenix/OTel trace 为完成边界。
-- GraphRAG / LightRAG / MCP Server 不再进入当前收尾任务，统一冻结为 V2 非目标。
+- 当时冻结 GraphRAG / LightRAG / MCP；当前已实现本地 MCP reference，GraphRAG 与远程 MCP 生态仍冻结。
 - 新增 `scripts/v1_final_check.py` 作为 V1 closure helper：默认列出 V1 验收命令并探测 PostgreSQL、Redis、MinIO、Elasticsearch、Milvus 本地端口；外部服务未启动时标记 blocked，但默认退出码仍为 0。
 - 如需把 full-mode 外部依赖作为硬验收，运行 `.\.venv\Scripts\python.exe scripts\v1_final_check.py --require-full`，任一端口不可达都会返回非零退出码。
 - 当前本机 Docker CLI 不可用，且本轮 PostgreSQL / Redis / MinIO / Milvus / Elasticsearch 端口未启动；这阻塞 full-mode integration/full E2E 复验，但不阻塞 V1 fallback 代码收尾。
@@ -171,3 +172,11 @@ V1 已完成；仍作为 V2 非目标保留：
 - 大规模 GraphRAG 重构。
 - 依赖远程 MCP 生态才能运行的功能。
 - 必须依赖 Docker 或云 key 才能通过的单元测试。
+
+## 2026-07-13 Runtime 深化验收
+
+- `.\.venv\Scripts\python.exe scripts\quality_gate.py`：通过，`260 passed`、`11 deselected`，仅保留 FastAPI TestClient/httpx2 deprecation warning。
+- `cd frontend && npm exec vue-tsc -- -b`：通过。
+- `cd frontend && npm run build`：TypeScript 阶段通过，Vite 在当前 Windows 沙箱加载配置时因 `spawn EPERM` 被阻塞；这不是源码编译错误。
+- Playwright 浏览器进程受同一沙箱策略限制，本轮未复验；2026-06-01 的 V1 fallback 基线仍为 `5 passed`。
+- full-mode integration 仍需 PostgreSQL、Redis、Milvus、Elasticsearch、MinIO，不属于无外部依赖的质量门禁。
