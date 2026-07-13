@@ -1,8 +1,8 @@
-# EnterpriseMind Agent Harness RAG
+# EnterpriseMind Agent Runtime
 
 ## 项目定位
 
-不是普通 RAG Chatbot。核心架构：**RAG 作为可信证据层 + Agent Harness 作为智能体执行治理层**。
+面向企业制度型长流程的 Agent Runtime。核心架构：**RAG 作为可信证据层 + Agent Harness 作为执行治理层**；HR Shared Service 是 Reference Application，不是平台边界。
 
 ## 技术栈
 
@@ -12,8 +12,8 @@
 
 ## 关键约束
 
-- V1 场景：HR 制度流程问答（入职、转正、报销、请假）
-- V1 非目标：GraphRAG、真实 HR 系统、OCR/PPT/Excel、多租户生产 RBAC、MCP
+- 主场景：新员工入职到转正的跨天 Case；报销、请假作为轻量评测场景
+- 非目标：GraphRAG 主链路、真实 HR 系统、完整生产 IAM、远程 MCP 生态依赖
 - 开发策略：纯领域闭环优先 → API 闭环 → 基础设施替换 → 前端 → V2 增强
 - 每个模块先用 in-memory/fake 实现，通过测试后再接入真实外部服务
 - 用户是 Python 新手，需要逐步引导
@@ -22,7 +22,7 @@
 
 - 项目亮点：`项目亮点.md`
 - 开发规划：`开发规划.md`（16 阶段 + 规划优化说明）
-- 模块规范：`docs/modules/00~14`（开发前先读对应模块规范和总览）
+- 模块规范：`docs/modules/00~15`（Runtime 深化见模块 15）
 - 原始参考：`RAG项目面试亮点.md`（已被项目亮点.md 合并，仅作参考）
 
 ## 代码实现规范
@@ -85,9 +85,11 @@
 - Phoenix / OpenTelemetry trace exporter：full mode 使用 OTLP HTTP。
 - `/health` full mode 可探测五个外部服务状态。
 
-V1 已完成；仍作为 V2 非目标保留：
+V1 已完成；2026-07-13 已完成 Runtime 工业化深化。仍作为非目标保留：
 
-- GraphRAG / LightRAG、MCP、真实 HR 系统、完整生产多租户 RBAC、生产级 OCR/PPT/Excel 全格式解析。
+- GraphRAG / LightRAG 主链路、远程 MCP 生态、真实 HR 系统、完整生产多租户 RBAC、生产级 OCR/PPT/Excel 全格式解析。
+
+新增已落地：长期 Case、Event Store/Outbox/Projection、Lease、SideEffect Ledger、Durable Timer、DocumentVersion、Context/Memory/Skill、MCP 2025-11-25 local server、A2A read-only peer、trajectory Safety Eval、Case 运维台。
 
 常用验证命令：
 
@@ -119,10 +121,18 @@ V1 已完成；仍作为 V2 非目标保留：
 
 ## V1 收尾冻结说明（2026-06-01）
 
-当前任务只做 V1 closure，不继续扩展 V2：
+该段是 2026-06-01 的历史 V1 closure 记录；2026-07-13 的 Runtime 深化结果优先：
 
 - V1 完成边界：fallback demo、FastAPI API、前端控制台、Agent Harness 审批恢复、RAG evidence/citations、真实 Qwen adapter、Celery 入库、full-mode 基础设施 adapter、LangGraph 可选编排、Phoenix/OTel trace。
-- V2 冻结范围：GraphRAG / LightRAG、MCP Server、真实 HR 系统、完整生产多租户 RBAC。
+- 当前冻结范围：GraphRAG / LightRAG 主链路、远程 MCP 生态、真实 HR 系统、完整生产多租户 RBAC。
 - 新增 V1 收尾脚本：`.\.venv\Scripts\python.exe scripts\v1_final_check.py`。
 - 默认脚本只把 full-mode 外部服务不可达标为 blocked，不让 V1 closure 失败；需要强制 full-mode 时使用 `--require-full`。
 - 当前本机 PostgreSQL / Redis / MinIO / Milvus / Elasticsearch 端口未启动，Docker CLI 不可用；full-mode integration/full E2E 复验需先恢复外部服务。
+
+## 2026-07-13 Runtime 深化验收
+
+- `.\.venv\Scripts\python.exe scripts\quality_gate.py`：通过，`260 passed`、`11 deselected`，仅保留 FastAPI TestClient/httpx2 deprecation warning。
+- `cd frontend && npm exec vue-tsc -- -b`：通过。
+- `cd frontend && npm run build`：TypeScript 阶段通过，Vite 在当前 Windows 沙箱加载配置时因 `spawn EPERM` 被阻塞；这不是源码编译错误。
+- Playwright 浏览器进程受同一沙箱策略限制，本轮未复验；2026-06-01 的 V1 fallback 基线仍为 `5 passed`。
+- full-mode integration 仍需 PostgreSQL、Redis、Milvus、Elasticsearch、MinIO，不属于无外部依赖的质量门禁。
