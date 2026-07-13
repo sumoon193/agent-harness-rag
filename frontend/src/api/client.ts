@@ -12,6 +12,10 @@ import type {
   ApprovalSubmitRequest,
   ApprovalSubmitResponse,
   EvalRunResponse,
+  HRCase,
+  CaseEventPage,
+  RuntimeMetricsSnapshot,
+  ApprovalDecisionType,
 } from '@/types'
 
 const BASE = '/api'
@@ -103,4 +107,78 @@ export function runEval(datasetPath?: string): Promise<EvalRunResponse> {
     method: 'POST',
     body: JSON.stringify({ dataset_path: datasetPath ?? null }),
   })
+}
+
+// ── Long-running Cases ──────────────────────────────────────────────
+
+export function listCases(): Promise<HRCase[]> {
+  return request<HRCase[]>('/cases')
+}
+
+export function getCase(caseId: string): Promise<HRCase> {
+  return request<HRCase>(`/cases/${caseId}`)
+}
+
+export function createCase(): Promise<HRCase> {
+  const suffix = Date.now().toString(36)
+  return request<HRCase>('/cases', {
+    method: 'POST',
+    body: JSON.stringify({
+      title: '新员工入职到转正',
+      tenant_id: 'tenant_001',
+      subject_user_id: `employee_${suffix}`,
+      actor_id: 'user_hr',
+      command_id: `cmd_case_create_${suffix}`,
+    }),
+  })
+}
+
+export function startCase(caseData: HRCase): Promise<HRCase> {
+  return request<HRCase>(`/cases/${caseData.id}/start`, {
+    method: 'POST',
+    body: JSON.stringify({
+      actor_id: 'user_hr',
+      command_id: `cmd_case_start_${caseData.id}_${caseData.version}`,
+      expected_version: caseData.version,
+    }),
+  })
+}
+
+export function decideCaseApproval(
+  caseData: HRCase,
+  approvalId: string,
+  decision: ApprovalDecisionType,
+): Promise<HRCase> {
+  return request<HRCase>(`/cases/${caseData.id}/approvals/${approvalId}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      decision,
+      actor_id: 'user_manager',
+      command_id: `cmd_case_${decision}_${caseData.id}_${caseData.version}`,
+      expected_version: caseData.version,
+    }),
+  })
+}
+
+export function getCaseEvents(caseId: string): Promise<CaseEventPage> {
+  return request<CaseEventPage>(`/cases/${caseId}/events?after_sequence=0`)
+}
+
+export function refreshCasePolicy(
+  caseData: HRCase,
+  policyVersion: string,
+): Promise<HRCase> {
+  return request<HRCase>(`/cases/${caseData.id}/policies/refresh`, {
+    method: 'POST',
+    body: JSON.stringify({
+      policy_version: policyVersion,
+      actor_id: 'user_hr',
+      command_id: `cmd_policy_refresh_${caseData.id}_${caseData.version}`,
+      expected_version: caseData.version,
+    }),
+  })
+}
+
+export function getRuntimeMetrics(): Promise<RuntimeMetricsSnapshot> {
+  return request<RuntimeMetricsSnapshot>('/metrics/runtime')
 }

@@ -3,12 +3,36 @@ import { expect, test, type Page } from '@playwright/test'
 test.describe.configure({ mode: 'serial' })
 
 async function createRun(page: Page, query = '新员工入职到转正要办哪些事项？') {
-  await page.goto('/')
+  await page.goto('/runs')
   await page.getByPlaceholder('输入 HR 流程问题').fill(query)
   await page.getByRole('button', { name: /创建 Run/ }).click()
   await expect(page.getByText('awaiting_approval').first()).toBeVisible({ timeout: 10_000 })
   await expect(page.getByTestId('approval-card')).toBeVisible()
 }
+
+test('Case 运维台完成跨天流程的审批前后状态转换', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: /创建入职 Case/ }).click()
+  await expect(page.getByTestId('case-detail')).toContainText('open')
+
+  await page.getByRole('button', { name: /启动治理流程/ }).click()
+  await expect(page.getByTestId('case-detail')).toContainText('waiting_approval')
+  const timeline = page.getByTestId('artifact-timeline')
+  await expect(timeline).toContainText('evidence.retrieved')
+  await expect(timeline).toContainText('plan.created')
+  await expect(timeline).toContainText('approval.requested')
+  await expect(page.getByTestId('case-approval')).not.toContainText('MCP-TK-')
+
+  await page.getByTestId('case-approval').getByRole('button', { name: /批准并恢复/ }).click()
+  await expect(page.getByTestId('case-detail')).toContainText('waiting_timer')
+  await expect(timeline).toContainText('tool.executed')
+  await expect(timeline).toContainText('timer.scheduled')
+  await expect(page.getByTestId('case-detail')).toContainText('MCP-TK-')
+
+  const metrics = page.getByTestId('runtime-metrics')
+  await expect(metrics).toContainText('Unsafe writes')
+  await expect(metrics).toContainText('0')
+})
 
 async function openTab(page: Page, name: RegExp) {
   await page.getByRole('tab', { name }).click()
