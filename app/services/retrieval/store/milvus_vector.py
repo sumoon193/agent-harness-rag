@@ -17,7 +17,7 @@ from app.services.retrieval.store.base import ACLFilter
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "document_chunks"
+COLLECTION_NAME = "document_chunks_v2"
 
 
 class MilvusVectorStore:
@@ -54,6 +54,7 @@ class MilvusVectorStore:
         )
         schema.add_field("chunk_id", DataType.VARCHAR, is_primary=True, max_length=128)
         schema.add_field("document_id", DataType.VARCHAR, max_length=64)
+        schema.add_field("document_version", DataType.VARCHAR, max_length=64)
         schema.add_field("tenant_id", DataType.VARCHAR, max_length=64)
         schema.add_field("department_id", DataType.VARCHAR, max_length=64)
         schema.add_field("visibility", DataType.VARCHAR, max_length=32)
@@ -90,8 +91,9 @@ class MilvusVectorStore:
         for i, chunk in enumerate(chunks):
             records.append(
                 {
-                    "chunk_id": f"{chunk.document_id}_{i:06d}",
+                    "chunk_id": chunk.id,
                     "document_id": chunk.document_id,
+                    "document_version": chunk.document_version,
                     "tenant_id": chunk.tenant_id,
                     "department_id": chunk.department_id,
                     "visibility": chunk.visibility.value if hasattr(chunk.visibility, "value") else str(chunk.visibility),
@@ -125,7 +127,7 @@ class MilvusVectorStore:
             limit=search_limit,
             filter=expr,
             output_fields=[
-                "chunk_id", "document_id", "tenant_id", "department_id",
+                "chunk_id", "document_id", "document_version", "tenant_id", "department_id",
                 "visibility", "chunk_text", "context_prefix", "heading_path", "page",
             ],
         )
@@ -156,6 +158,7 @@ class MilvusVectorStore:
             output.append(RetrievalResult(
                 chunk_id=entity.get("chunk_id", ""),
                 document_id=entity.get("document_id", ""),
+                document_version=entity.get("document_version", "v1"),
                 chunk_text=entity.get("chunk_text", ""),
                 context_prefix=entity.get("context_prefix", ""),
                 score=score,

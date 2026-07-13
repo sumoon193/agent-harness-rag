@@ -23,12 +23,16 @@ class TraceContext:
         trace_id: str,
         run_id: str,
         user_id: str,
-        tenant_id: str
+        tenant_id: str,
+        case_id: str | None = None,
+        event_id: str | None = None,
     ) -> None:
         self.trace_id = trace_id
         self.run_id = run_id
         self.user_id = user_id
         self.tenant_id = tenant_id
+        self.case_id = case_id
+        self.event_id = event_id
         self.spans: list[Span] = []
         self.current_span: Span | None = None
         self.created_at: datetime = datetime.now(timezone.utc)
@@ -67,6 +71,8 @@ class TraceContext:
             "run_id": self.run_id,
             "user_id": self.user_id,
             "tenant_id": self.tenant_id,
+            "case_id": self.case_id,
+            "event_id": self.event_id,
             "span_count": len(self.spans),
             "created_at": self.created_at.isoformat()
         }

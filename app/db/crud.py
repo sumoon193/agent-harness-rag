@@ -154,6 +154,17 @@ async def save_approval(
     decision: ApprovalDecisionType | None = None,
     decided_by: str | None = None,
     decided_at: datetime | None = None,
+    revision: int = 1,
+    subject_hash: str = "",
+    requested_by: str | None = None,
+    requested_at: datetime | None = None,
+    expires_at: datetime | None = None,
+    policy_version: str = "",
+    execution_manifest_hash: str = "",
+    supersedes_approval_id: str | None = None,
+    revoked_by: str | None = None,
+    revoked_at: datetime | None = None,
+    revoke_reason: str | None = None,
 ) -> ApprovalRequest:
     """创建审批请求。"""
     if options is None:
@@ -176,6 +187,17 @@ async def save_approval(
         decision=_enum_value(decision),
         decided_by=decided_by,
         decided_at=decided_at,
+        revision=revision,
+        subject_hash=subject_hash,
+        requested_by=requested_by,
+        requested_at=requested_at,
+        expires_at=expires_at,
+        policy_version=policy_version,
+        execution_manifest_hash=execution_manifest_hash,
+        supersedes_approval_id=supersedes_approval_id,
+        revoked_by=revoked_by,
+        revoked_at=revoked_at,
+        revoke_reason=revoke_reason,
     )
     session.add(approval)
     await session.commit()
@@ -199,6 +221,17 @@ async def upsert_approval(
     decision: ApprovalDecisionType | None = None,
     decided_by: str | None = None,
     decided_at: datetime | None = None,
+    revision: int = 1,
+    subject_hash: str = "",
+    requested_by: str | None = None,
+    requested_at: datetime | None = None,
+    expires_at: datetime | None = None,
+    policy_version: str = "",
+    execution_manifest_hash: str = "",
+    supersedes_approval_id: str | None = None,
+    revoked_by: str | None = None,
+    revoked_at: datetime | None = None,
+    revoke_reason: str | None = None,
 ) -> ApprovalRequest:
     """新增或更新审批请求快照。"""
     existing = await get_approval(session, approval_id)
@@ -218,6 +251,17 @@ async def upsert_approval(
             decision=decision,
             decided_by=decided_by,
             decided_at=decided_at,
+            revision=revision,
+            subject_hash=subject_hash,
+            requested_by=requested_by,
+            requested_at=requested_at,
+            expires_at=expires_at,
+            policy_version=policy_version,
+            execution_manifest_hash=execution_manifest_hash,
+            supersedes_approval_id=supersedes_approval_id,
+            revoked_by=revoked_by,
+            revoked_at=revoked_at,
+            revoke_reason=revoke_reason,
         )
 
     values = {
@@ -238,6 +282,17 @@ async def upsert_approval(
         "decision": _enum_value(decision),
         "decided_by": decided_by,
         "decided_at": decided_at,
+        "revision": revision,
+        "subject_hash": subject_hash,
+        "requested_by": requested_by,
+        "requested_at": requested_at,
+        "expires_at": expires_at,
+        "policy_version": policy_version,
+        "execution_manifest_hash": execution_manifest_hash,
+        "supersedes_approval_id": supersedes_approval_id,
+        "revoked_by": revoked_by,
+        "revoked_at": revoked_at,
+        "revoke_reason": revoke_reason,
     }
     await session.execute(
         update(ApprovalRequest)

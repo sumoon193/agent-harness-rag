@@ -53,6 +53,21 @@ class TestTraceCreation:
 
         assert context1.trace_id != context2.trace_id
 
+    def test_case_trace_correlates_case_run_and_event(self, tracer: Tracer):
+        """长期 Case span 应同时携带 case_id、run_id 与 event_id。"""
+        context = tracer.start_trace(
+            "run_001",
+            "user_001",
+            "tenant_hr",
+            case_id="case_001",
+            event_id="evt_001",
+        )
+        span = tracer.start_span(context, SpanType.AGENT_STEP, "case_event")
+
+        assert span.attributes["case_id"] == "case_001"
+        assert span.attributes["run_id"] == "run_001"
+        assert span.attributes["event_id"] == "evt_001"
+
 
 class TestSpanRecording:
     """Span 记录测试。"""

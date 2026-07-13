@@ -44,7 +44,10 @@ class Tracer:
         self,
         run_id: str,
         user_id: str,
-        tenant_id: str
+        tenant_id: str,
+        *,
+        case_id: str | None = None,
+        event_id: str | None = None,
     ) -> TraceContext:
         """
         开始一个新的 Trace。
@@ -63,7 +66,9 @@ class Tracer:
             trace_id=trace_id,
             run_id=run_id,
             user_id=user_id,
-            tenant_id=tenant_id
+            tenant_id=tenant_id,
+            case_id=case_id,
+            event_id=event_id,
         )
 
         self._contexts[trace_id] = context
@@ -106,8 +111,12 @@ class Tracer:
         default_attrs = {
             "run_id": context.run_id,
             "user_id": context.user_id,
-            "tenant_id": context.tenant_id
+            "tenant_id": context.tenant_id,
         }
+        if context.case_id is not None:
+            default_attrs["case_id"] = context.case_id
+        if context.event_id is not None:
+            default_attrs["event_id"] = context.event_id
         if attributes:
             default_attrs.update(attributes)
 

@@ -14,7 +14,9 @@ class ChunkCreate(BaseModel):
 
     用于 chunker 输出，不对外暴露。
     """
+    id: str = Field(default="", description="稳定分块 ID，前缀 chunk_")
     document_id: str = Field(description="所属文档 ID")
+    document_version: str = Field(default="v1", description="不可变文档版本 ID")
     chunk_text: str = Field(description="原始分块文本")
     context_prefix: str = Field(
         default="",
@@ -64,6 +66,7 @@ class DocumentChunk(BaseModel):
     """
     id: str = Field(description="分块 ID，前缀 chunk_")
     document_id: str = Field(description="所属文档 ID")
+    document_version: str = Field(default="v1", description="不可变文档版本 ID")
     chunk_text: str = Field(description="原始分块文本")
     context_prefix: str = Field(
         default="",
@@ -112,6 +115,9 @@ class Citation(BaseModel):
     用于答案生成时的证据引用标注。
     """
     id: int = Field(description="引用编号（答案中的 [1][2]）")
+    chunk_id: str = Field(default="", description="稳定 chunk ID")
+    document_id: str = Field(default="", description="文档 ID")
+    document_version: str = Field(default="v1", description="证据文档版本")
     document_name: str = Field(description="文档名称")
     section: str = Field(description="章节名称")
     page: int = Field(description="页码")

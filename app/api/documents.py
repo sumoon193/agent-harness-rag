@@ -201,6 +201,12 @@ async def upload_document(
             visibility=visibility,
         )
 
+    document_version = await container.document_version_registry.register(
+        document_id=doc_id,
+        content=content,
+    )
+    task.document_version = document_version.id
+
     dispatcher = _build_dispatcher(container)
     task = await dispatcher.dispatch(
         task=task,
@@ -220,6 +226,7 @@ async def upload_document(
 
     return DocumentCreateResponse(
         id=doc_id,
+        document_version=document_version.id,
         task_id=task.id,
         status=status,
         message=_build_upload_message(task),

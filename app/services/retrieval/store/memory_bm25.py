@@ -13,6 +13,7 @@ from collections import Counter, defaultdict
 from app.schemas.chunk import ChunkCreate
 from app.schemas.enums import Visibility
 from app.schemas.retrieval import RetrievalResult
+from app.services.ingestion.identity import stable_chunk_id
 from app.services.retrieval.store.base import ACLFilter
 
 logger = logging.getLogger(__name__)
@@ -54,12 +55,25 @@ class InMemoryBM25Store:
             extra={"count": len(chunks)}
         )
 
-        for chunk in chunks:
+        for ordinal, chunk in enumerate(chunks, start=1):
+            stored_chunk = chunk
+            if not chunk.id:
+                stored_chunk = chunk.model_copy(
+                    update={
+                        "id": stable_chunk_id(
+                            document_id=chunk.document_id,
+                            document_version=chunk.document_version,
+                            heading_path=chunk.heading_path,
+                            ordinal=ordinal,
+                            chunk_text=chunk.chunk_text,
+                        )
+                    }
+                )
             doc_idx = len(self._chunks)
-            self._chunks.append(chunk)
+            self._chunks.append(stored_chunk)
 
             # 分词
-            tokens = self._tokenize(chunk.full_text or chunk.chunk_text)
+            tokens = self._tokenize(stored_chunk.full_text or stored_chunk.chunk_text)
             self._doc_lengths.append(len(tokens))
 
             # 统计词频
@@ -143,8 +157,9 @@ class InMemoryBM25Store:
             normalized_score = min(score / (score + 1), 1.0)
 
             result = RetrievalResult(
-                chunk_id=f"chunk_{hash(chunk.document_id + chunk.chunk_text[:50]) % 1000000:06d}",
+                chunk_id=chunk.id,
                 document_id=chunk.document_id,
+                document_version=chunk.document_version,
                 chunk_text=chunk.chunk_text,
                 context_prefix=chunk.context_prefix,
                 score=normalized_score,

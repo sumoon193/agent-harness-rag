@@ -28,6 +28,17 @@ class RunStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class CaseStatus(StrEnum):
+    """跨轮次、跨天业务 Case 状态。"""
+
+    OPEN = "open"
+    WAITING_APPROVAL = "waiting_approval"
+    WAITING_TIMER = "waiting_timer"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class DocumentStatus(StrEnum):
     """
     文档入库状态。
@@ -81,6 +92,9 @@ class ApprovalStatus(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
     EDITED = "edited"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+    SUPERSEDED = "superseded"
 
 
 class ApprovalDecisionType(StrEnum):
@@ -92,6 +106,42 @@ class ApprovalDecisionType(StrEnum):
     APPROVE = "approve"
     EDIT = "edit"
     REJECT = "reject"
+
+
+class SideEffectStatus(StrEnum):
+    """副作用账本状态。"""
+
+    RESERVED = "reserved"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    UNKNOWN = "unknown"
+
+
+class TimerStatus(StrEnum):
+    """持久化定时器状态。"""
+
+    SCHEDULED = "scheduled"
+    CLAIMED = "claimed"
+    FIRED = "fired"
+    CANCELLED = "cancelled"
+
+
+class MemoryStatus(StrEnum):
+    """长期记忆治理状态。"""
+
+    ACTIVE = "active"
+    QUARANTINED = "quarantined"
+    DELETED = "deleted"
+    EXPIRED = "expired"
+
+
+class SkillStatus(StrEnum):
+    """程序性 Skill 生命周期。"""
+
+    DRAFT = "draft"
+    ACTIVE = "active"
+    DEPRECATED = "deprecated"
+    REVOKED = "revoked"
 
 
 class Visibility(StrEnum):

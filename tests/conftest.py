@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import uuid
 from pathlib import Path
 
 import pytest
@@ -43,6 +45,19 @@ def fixtures_dir() -> str:
 # ── 标准 HR 文档路径 fixtures ────────────────────────────────────────
 
 _HR_DOCS_DIR = Path(__file__).parent / "fixtures" / "hr_docs"
+_RUNTIME_TEST_FILES = Path(__file__).parent.parent / "runtime_test_files"
+
+
+@pytest.fixture
+def tmp_path() -> Path:
+    """使用继承仓库 ACL 的临时目录，规避 Windows 0700 权限映射问题。"""
+    _RUNTIME_TEST_FILES.mkdir(parents=True, exist_ok=True)
+    path = _RUNTIME_TEST_FILES / f"case_{uuid.uuid4().hex[:12]}"
+    path.mkdir()
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
 
 
 @pytest.fixture

@@ -14,6 +14,7 @@ from pathlib import Path
 from app.schemas.chunk import ChunkCreate
 from app.schemas.enums import DocumentStatus, Visibility
 from app.services.chunker.hybrid import HybridChunker
+from app.services.ingestion.identity import stable_chunk_id
 from app.services.ingestion.task import IngestionStage, IngestionTask
 from app.services.parser.base import ParsedDocument
 from app.services.parser.registry import ParserRegistry
@@ -180,6 +181,21 @@ class IngestionPipeline:
         """阶段 3: 分块。"""
         task.start_stage(IngestionStage.CHUNKING)
         chunks = await self._chunker.chunk(parsed_doc)
+        chunks = [
+            chunk.model_copy(
+                update={
+                    "id": stable_chunk_id(
+                        document_id=task.document_id,
+                        document_version=task.document_version,
+                        heading_path=chunk.heading_path,
+                        ordinal=index,
+                        chunk_text=chunk.chunk_text,
+                    ),
+                    "document_version": task.document_version,
+                }
+            )
+            for index, chunk in enumerate(chunks, start=1)
+        ]
         task.complete_stage(IngestionStage.CHUNKING, chunk_count=len(chunks))
         return chunks
 
@@ -247,7 +263,7 @@ class IngestionPipeline:
         if self._bm25_store is not None:
             await self._bm25_store.add_chunks(chunks)
 
-        self._indexed_chunks[doc_id] = [f"{doc_id}_chunk_{i:04d}" for i in range(len(chunks))]
+        self._indexed_chunks[doc_id] = [chunk.id for chunk in chunks]
         task.complete_stage(IngestionStage.INDEXING, chunk_count=len(chunks))
 
     def _stage_mark_ready(self, task: IngestionTask, chunk_count: int) -> None:

@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import re
+import uuid
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
+PYCACHE_PREFIX = PROJECT_ROOT / f".quality-pycache-{uuid.uuid4().hex[:8]}"
 
 
 def run(cmd: list[str], label: str) -> tuple[bool, str]:
@@ -125,7 +128,7 @@ def check_no_print_statements() -> bool:
             # 跳过注释和字符串
             if stripped.startswith("#"):
                 continue
-            if "print(" in stripped and not stripped.startswith('"""'):
+            if re.search(r"\bprint\s*\(", stripped) and not stripped.startswith('"""'):
                 violations.append(f"  {py_file.relative_to(PROJECT_ROOT)}:{i}: {stripped}")
 
     if violations:
@@ -162,7 +165,15 @@ def check_env_not_tracked() -> bool:
 def check_compilation() -> bool:
     """检查 7：所有 Python 文件可编译。"""
     ok, _ = run(
-        [sys.executable, "-m", "compileall", "-q", "app"],
+        [
+            sys.executable,
+            "-X",
+            f"pycache_prefix={PYCACHE_PREFIX}",
+            "-m",
+            "compileall",
+            "-q",
+            "app",
+        ],
         "检查 7：Python 编译检查",
     )
     return ok

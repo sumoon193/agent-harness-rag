@@ -54,6 +54,9 @@ class CitationBuilder:
         for idx, item in enumerate(sorted_evidence, start=1):
             citation = Citation(
                 id=idx,
+                chunk_id=item.chunk_id,
+                document_id=item.document_id,
+                document_version=item.document_version,
                 document_name=item.document_name,
                 section=item.section,
                 page=item.page,

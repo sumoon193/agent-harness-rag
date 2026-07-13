@@ -5,9 +5,11 @@ Approval Manager。
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import timedelta
 from typing import Any
 
 from app.core.exceptions import NotFoundError, ValidationError
@@ -16,6 +18,7 @@ from app.schemas.enums import ApprovalDecisionType, ApprovalStatus, ToolRiskLeve
 from app.schemas.tool import ToolCall
 from app.schemas.user import UserContext
 from app.services.agent.step_logger import StepLogger
+from app.services.runtime.clock import Clock, SystemClock
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +30,13 @@ class ApprovalManager:
     管理审批请求的生命周期。
     """
 
-    def __init__(self, step_logger: StepLogger) -> None:
+    def __init__(
+        self,
+        step_logger: StepLogger,
+        *,
+        clock: Clock | None = None,
+        default_ttl_seconds: int = 86_400,
+    ) -> None:
         """
         初始化审批管理器。
 
@@ -35,6 +44,8 @@ class ApprovalManager:
             step_logger: 步骤记录器
         """
         self._step_logger = step_logger
+        self._clock = clock or SystemClock()
+        self._default_ttl_seconds = default_ttl_seconds
         self._requests: dict[str, ApprovalRequest] = {}  # approval_id -> request
 
     def create_request(
@@ -44,7 +55,12 @@ class ApprovalManager:
         tool_name: str,
         parameters: dict[str, Any],
         risk_level: ToolRiskLevel,
-        user_context: UserContext
+        user_context: UserContext,
+        evidence: list[dict[str, Any]] | None = None,
+        policy_version: str = "",
+        execution_manifest_hash: str = "",
+        revision: int = 1,
+        supersedes_approval_id: str | None = None,
     ) -> ApprovalRequest:
         """
         创建审批请求。
@@ -65,8 +81,15 @@ class ApprovalManager:
         # 生成预期影响描述
         expected_effect = self._generate_expected_effect(tool_name, parameters)
 
-        # 生成证据（模拟）
-        evidence = self._generate_evidence(tool_name, parameters)
+        bound_evidence = evidence or self._generate_evidence(tool_name, parameters)
+        requested_at = self._clock.now()
+        subject_hash = self.compute_subject_hash(
+            tool_name=tool_name,
+            parameters=parameters,
+            evidence=bound_evidence,
+            policy_version=policy_version,
+            execution_manifest_hash=execution_manifest_hash,
+        )
 
         request = ApprovalRequest(
             id=approval_id,
@@ -75,13 +98,21 @@ class ApprovalManager:
             tool_name=tool_name,
             parameters=parameters,
             expected_effect=expected_effect,
-            evidence=evidence,
+            evidence=bound_evidence,
             risk_level=risk_level,
             options=[ApprovalDecisionType.APPROVE, ApprovalDecisionType.EDIT, ApprovalDecisionType.REJECT],
             status=ApprovalStatus.PENDING,
             decision=None,
             decided_by=None,
-            decided_at=None
+            decided_at=None,
+            revision=revision,
+            subject_hash=subject_hash,
+            requested_by=user_context.user_id,
+            requested_at=requested_at,
+            expires_at=requested_at + timedelta(seconds=self._default_ttl_seconds),
+            policy_version=policy_version,
+            execution_manifest_hash=execution_manifest_hash,
+            supersedes_approval_id=supersedes_approval_id,
         )
 
         self._requests[approval_id] = request
@@ -111,11 +142,18 @@ class ApprovalManager:
         """
         request = self._get_request(approval_id)
         self._validate_pending(request)
+        if (
+            request.risk_level == ToolRiskLevel.ADMIN
+            and request.requested_by == decided_by
+        ):
+            raise ValidationError(
+                f"Admin approval requires maker-checker separation: {approval_id}"
+            )
 
         request.status = ApprovalStatus.APPROVED
         request.decision = ApprovalDecisionType.APPROVE
         request.decided_by = decided_by
-        request.decided_at = datetime.now(timezone.utc)
+        request.decided_at = self._clock.now()
 
         # 记录审计步骤
         self._step_logger.log_step(
@@ -153,7 +191,7 @@ class ApprovalManager:
         request.status = ApprovalStatus.REJECTED
         request.decision = ApprovalDecisionType.REJECT
         request.decided_by = decided_by
-        request.decided_at = datetime.now(timezone.utc)
+        request.decided_at = self._clock.now()
 
         # 记录审计步骤
         self._step_logger.log_step(
@@ -194,15 +232,37 @@ class ApprovalManager:
         request = self._get_request(approval_id)
         self._validate_pending(request)
 
-        # 记录原始参数
         original_parameters = request.parameters.copy()
-
-        # 更新参数和状态
-        request.parameters = edited_parameters
-        request.status = ApprovalStatus.APPROVED
+        request.status = ApprovalStatus.SUPERSEDED
         request.decision = ApprovalDecisionType.EDIT
         request.decided_by = decided_by
-        request.decided_at = datetime.now(timezone.utc)
+        request.decided_at = self._clock.now()
+
+        revised_id = f"appr_{uuid.uuid4().hex[:12]}"
+        revised_subject_hash = self.compute_subject_hash(
+            tool_name=request.tool_name,
+            parameters=edited_parameters,
+            evidence=request.evidence,
+            policy_version=request.policy_version,
+            execution_manifest_hash=request.execution_manifest_hash,
+        )
+        revised = request.model_copy(
+            update={
+                "id": revised_id,
+                "parameters": edited_parameters,
+                "status": ApprovalStatus.APPROVED,
+                "revision": request.revision + 1,
+                "subject_hash": revised_subject_hash,
+                "supersedes_approval_id": request.id,
+                "requested_at": self._clock.now(),
+                "expires_at": self._clock.now()
+                + timedelta(seconds=self._default_ttl_seconds),
+                "decided_by": decided_by,
+                "decided_at": self._clock.now(),
+            },
+            deep=True,
+        )
+        self._requests[revised.id] = revised
 
         # 记录审计步骤
         self._step_logger.log_step(
@@ -214,7 +274,9 @@ class ApprovalManager:
                 "decided_by": decided_by,
                 "original_parameters": original_parameters,
                 "edited_parameters": edited_parameters,
-                "tool_name": request.tool_name
+                "tool_name": request.tool_name,
+                "superseded_approval_id": request.id,
+                "revised_approval_id": revised.id,
             }
         )
 
@@ -223,7 +285,7 @@ class ApprovalManager:
             extra={"approval_id": approval_id, "decided_by": decided_by}
         )
 
-        return request
+        return revised
 
     def get_request(self, approval_id: str) -> ApprovalRequest:
         """
@@ -236,6 +298,18 @@ class ApprovalManager:
             审批请求
         """
         return self._get_request(approval_id)
+
+    def restore_request(self, request: ApprovalRequest) -> ApprovalRequest:
+        """从持久审计事件恢复审批对象，供跨进程 resume 使用。"""
+        existing = self._requests.get(request.id)
+        if existing is not None:
+            if existing.subject_hash != request.subject_hash:
+                raise ValidationError(
+                    f"Restored approval subject mismatch: {request.id}"
+                )
+            return existing
+        self._requests[request.id] = request.model_copy(deep=True)
+        return self._requests[request.id]
 
     def get_pending_requests(self, run_id: str) -> list[ApprovalRequest]:
         """
@@ -264,6 +338,79 @@ class ApprovalManager:
         """
         return [r for r in self._requests.values() if r.run_id == run_id]
 
+    def revoke(self, approval_id: str, revoked_by: str, reason: str) -> ApprovalRequest:
+        """撤销尚未执行的审批授权。"""
+        request = self._get_request(approval_id)
+        if request.status not in {ApprovalStatus.PENDING, ApprovalStatus.APPROVED}:
+            raise ValidationError(
+                f"Approval request {approval_id} cannot be revoked from {request.status.value}"
+            )
+        request.status = ApprovalStatus.REVOKED
+        request.revoked_by = revoked_by
+        request.revoked_at = self._clock.now()
+        request.revoke_reason = reason
+        self._step_logger.log_step(
+            run_id=request.run_id,
+            node_name="approval_revoked",
+            input_data={"approval_id": approval_id},
+            output_data={"revoked_by": revoked_by, "reason": reason},
+        )
+        return request
+
+    def validate_for_execution(
+        self,
+        approval_id: str,
+        *,
+        tool_name: str,
+        parameters: dict[str, Any],
+        evidence: list[dict[str, Any]],
+        policy_version: str,
+        execution_manifest_hash: str,
+    ) -> ApprovalRequest:
+        """执行前重新校验授权状态、有效期与不可变审批对象。"""
+        request = self._get_request(approval_id)
+        if request.expires_at is not None and self._clock.now() >= request.expires_at:
+            request.status = ApprovalStatus.EXPIRED
+            raise ValidationError(f"Approval request {approval_id} expired before execution")
+        if request.status != ApprovalStatus.APPROVED:
+            raise ValidationError(
+                f"Approval request {approval_id} is not executable ({request.status.value})"
+            )
+        actual_hash = self.compute_subject_hash(
+            tool_name=tool_name,
+            parameters=parameters,
+            evidence=evidence,
+            policy_version=policy_version,
+            execution_manifest_hash=execution_manifest_hash,
+        )
+        if actual_hash != request.subject_hash:
+            raise ValidationError(f"Approval subject hash mismatch: {approval_id}")
+        return request
+
+    @staticmethod
+    def compute_subject_hash(
+        *,
+        tool_name: str,
+        parameters: dict[str, Any],
+        evidence: list[dict[str, Any]],
+        policy_version: str,
+        execution_manifest_hash: str,
+    ) -> str:
+        """计算审批工具、参数、证据和版本的规范化 SHA-256。"""
+        canonical = json.dumps(
+            {
+                "tool_name": tool_name,
+                "parameters": parameters,
+                "evidence": evidence,
+                "policy_version": policy_version,
+                "execution_manifest_hash": execution_manifest_hash,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
     def _get_request(self, approval_id: str) -> ApprovalRequest:
         """获取审批请求（内部方法）。"""
         if approval_id not in self._requests:
@@ -272,6 +419,9 @@ class ApprovalManager:
 
     def _validate_pending(self, request: ApprovalRequest) -> None:
         """验证请求是否为待审批状态。"""
+        if request.expires_at is not None and self._clock.now() >= request.expires_at:
+            request.status = ApprovalStatus.EXPIRED
+            raise ValidationError(f"Approval request {request.id} expired")
         if request.status != ApprovalStatus.PENDING:
             raise ValidationError(
                 f"Approval request {request.id} is not pending (current status: {request.status.value})"
