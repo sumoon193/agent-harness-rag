@@ -9,12 +9,13 @@ const route = useRoute()
 const health = ref<HealthResponse | null>(null)
 const healthFailed = ref(false)
 
-const activePath = computed(() => (route.path.startsWith('/runs/') ? '/' : route.path))
+const activePath = computed(() => (route.path.startsWith('/runs/') ? '/runs' : route.path))
 
 const pageTitle = computed(() => {
   if (route.path.startsWith('/runs/')) return 'Run 审计详情'
   const titles: Record<string, string> = {
-    '/': 'Agent 运行台',
+    '/': 'Case 运营控制台',
+    '/runs': 'Agent Run 实验台',
     '/documents': '文档入库',
     '/eval': '评测看板',
   }
@@ -73,8 +74,12 @@ function handleSelect(path: string) {
         @select="handleSelect"
       >
         <el-menu-item index="/">
-          <el-icon><ChatDotRound /></el-icon>
-          <span>Agent 运行台</span>
+          <el-icon><Briefcase /></el-icon>
+          <span>Case 运营</span>
+        </el-menu-item>
+        <el-menu-item index="/runs">
+          <el-icon><Operation /></el-icon>
+          <span>Agent Runs</span>
         </el-menu-item>
         <el-menu-item index="/documents">
           <el-icon><Document /></el-icon>

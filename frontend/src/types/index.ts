@@ -44,6 +44,7 @@ export interface HealthService {
 
 export interface DocumentCreateResponse {
   id: string
+  document_version: string
   task_id: string
   status: string
   message: string
@@ -155,4 +156,67 @@ export interface ChatMessage {
   content: string
   runId?: string
   timestamp: Date
+}
+
+// ── Long-running Case Runtime ───────────────────────────────────────
+
+export type CaseStatus =
+  | 'open'
+  | 'waiting_approval'
+  | 'waiting_timer'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export interface ExecutionManifest {
+  model_provider: string
+  model_name: string
+  model_version: string
+  prompt_version: string
+  skill_versions: Record<string, string>
+  tool_schema_versions: Record<string, string>
+  policy_version: string
+  retrieval_version: string
+  context_strategy_version: string
+  code_version: string
+}
+
+export interface HRCase {
+  id: string
+  title: string
+  tenant_id: string
+  subject_user_id: string
+  status: CaseStatus
+  version: number
+  execution_manifest: ExecutionManifest
+  policy_versions: Record<string, string>
+  working_memory: Record<string, any>
+  active_run_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CaseEvent {
+  id: string
+  aggregate_id: string
+  sequence: number
+  event_type: string
+  payload: Record<string, any>
+  actor_id: string
+  created_at: string
+  event_hash: string
+}
+
+export interface CaseEventPage {
+  case_id: string
+  after_sequence: number
+  items: CaseEvent[]
+  next_sequence: number
+}
+
+export interface RuntimeMetricsSnapshot {
+  counters: Record<string, number>
+  gauges: Record<string, number>
+  observations: Record<string, number[]>
+  generated_at: string
 }
