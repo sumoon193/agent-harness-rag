@@ -221,6 +221,7 @@ def test_create_document_returns_id(client: TestClient) -> None:
     assert resp.status_code == 201
     data = resp.json()
     assert data["id"].startswith("doc_")
+    assert data["document_version"].startswith("docver_")
     assert data["task_id"].startswith("ing_")
     assert data["status"] == "ready"
 

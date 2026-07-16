@@ -88,6 +88,10 @@ class McpToolAdapter:
         tool_name: str,
         parameters: dict[str, Any],
         user_context: UserContext,
+        *,
+        approval_evidence: list[dict[str, Any]] | None = None,
+        policy_version: str = "",
+        execution_manifest_hash: str = "",
     ) -> ToolCall:
         """
         调用 MCP 工具。
@@ -101,6 +105,9 @@ class McpToolAdapter:
             tool_name=tool_name,
             parameters=parameters,
             user_context=user_context,
+            approval_evidence=approval_evidence,
+            policy_version=policy_version,
+            execution_manifest_hash=execution_manifest_hash,
         )
 
     def _validate_parameters(

@@ -81,6 +81,7 @@ class RRFFuser:
             fused = RetrievalResult(
                 chunk_id=original.chunk_id,
                 document_id=original.document_id,
+                document_version=original.document_version,
                 chunk_text=original.chunk_text,
                 context_prefix=original.context_prefix,
                 score=rrf_score,  # 使用 RRF 分数作为主分数

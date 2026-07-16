@@ -7,3 +7,16 @@ from app.models.document import Document  # noqa: F401
 from app.models.eval import EvalCase, EvalRun  # noqa: F401
 from app.models.ingestion_task import IngestionTaskRecord  # noqa: F401
 from app.models.tool_call import ToolCall  # noqa: F401
+from app.models.runtime import (  # noqa: F401
+    CaseRecord,
+    ContextSnapshotRecord,
+    DocumentVersionRecord,
+    DurableTimerRecord,
+    EpisodicMemoryRecordORM,
+    OutboxRecord,
+    RuntimeAggregateRecord,
+    RuntimeEventRecord,
+    RuntimeLeaseRecord,
+    SideEffectLedgerRecord,
+    SkillManifestRecord,
+)

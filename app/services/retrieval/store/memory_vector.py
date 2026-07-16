@@ -10,6 +10,7 @@ import logging
 from app.schemas.chunk import ChunkCreate
 from app.schemas.enums import Visibility
 from app.schemas.retrieval import RetrievalResult
+from app.services.ingestion.identity import stable_chunk_id
 from app.services.retrieval.store.base import ACLFilter
 
 logger = logging.getLogger(__name__)
@@ -47,10 +48,23 @@ class InMemoryVectorStore:
             extra={"count": len(chunks)}
         )
 
-        for chunk, embedding in zip(chunks, embeddings):
-            self._chunks.append(chunk)
+        for ordinal, (chunk, embedding) in enumerate(zip(chunks, embeddings), start=1):
+            stored_chunk = chunk
+            if not chunk.id:
+                stored_chunk = chunk.model_copy(
+                    update={
+                        "id": stable_chunk_id(
+                            document_id=chunk.document_id,
+                            document_version=chunk.document_version,
+                            heading_path=chunk.heading_path,
+                            ordinal=ordinal,
+                            chunk_text=chunk.chunk_text,
+                        )
+                    }
+                )
+            self._chunks.append(stored_chunk)
             self._embeddings.append(embedding)
-            self._chunk_ids.append(chunk.document_id)
+            self._chunk_ids.append(stored_chunk.document_id)
 
     async def search(
         self,
@@ -100,8 +114,9 @@ class InMemoryVectorStore:
             normalized_score = min(max(normalized_score, 0.0), 1.0)
 
             result = RetrievalResult(
-                chunk_id=f"chunk_{hash(chunk.document_id + chunk.chunk_text[:50]) % 1000000:06d}",
+                chunk_id=chunk.id,
                 document_id=chunk.document_id,
+                document_version=chunk.document_version,
                 chunk_text=chunk.chunk_text,
                 context_prefix=chunk.context_prefix,
                 score=normalized_score,

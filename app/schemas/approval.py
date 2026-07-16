@@ -52,6 +52,17 @@ class ApprovalRequest(BaseModel):
         default=None,
         description="审批时间（UTC）"
     )
+    revision: int = Field(default=1, ge=1, description="审批修订号")
+    subject_hash: str = Field(default="", description="审批对象内容哈希")
+    requested_by: str | None = Field(default=None, description="审批发起人")
+    requested_at: datetime | None = Field(default=None, description="审批发起时间")
+    expires_at: datetime | None = Field(default=None, description="审批失效时间")
+    policy_version: str = Field(default="", description="绑定的策略版本")
+    execution_manifest_hash: str = Field(default="", description="绑定的执行清单哈希")
+    supersedes_approval_id: str | None = Field(default=None, description="被替代审批 ID")
+    revoked_by: str | None = Field(default=None, description="撤销人")
+    revoked_at: datetime | None = Field(default=None, description="撤销时间")
+    revoke_reason: str | None = Field(default=None, description="撤销原因")
 
     model_config = {"from_attributes": True}
 

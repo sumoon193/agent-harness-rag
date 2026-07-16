@@ -67,6 +67,7 @@ class MockReranker:
             reranked_result = RetrievalResult(
                 chunk_id=result.chunk_id,
                 document_id=result.document_id,
+                document_version=result.document_version,
                 chunk_text=result.chunk_text,
                 context_prefix=result.context_prefix,
                 score=result.score,

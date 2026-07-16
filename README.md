@@ -1,142 +1,159 @@
-# EnterpriseMind Agent Harness RAG
+# EnterpriseMind Agent Runtime
 
-EnterpriseMind Agent Harness RAG 是一个面向企业 HR 知识任务的智能体平台。它不是普通的 RAG Chatbot，而是把 **RAG 可信证据层** 和 **Agent Harness 执行治理层** 组合起来，让企业知识问答、任务规划、工具审批和运行审计形成一个可控闭环。
+EnterpriseMind 是面向企业内部制度型长流程的 **Agent Runtime 与执行治理平台**。HR Shared Service 是首个 Reference Application，用“新员工入职到转正”的跨天 Case 验证证据检索、计划、人工审批、权限控制、故障恢复、幂等副作用、持久定时器和审计能力。
 
-## 项目解决什么问题
+它不是 HR Chatbot，也不是把 LLM 套在固定 BPM 上：
 
-企业内部制度、合同、操作手册、会议纪要和产品文档通常分散在不同系统里，存在几个典型问题：
+- RAG 是可信证据层，负责版本化制度、ACL 检索、重排、引用与 evidence freshness。
+- Agent Harness 是执行治理层，负责 Case/Run、PLAN-ACT-OBSERVE-REFLECT-REPAIR、工具风险、审批、checkpoint、side-effect ledger、timer、memory、Skill、protocol 和 safety eval。
+- HR 逻辑只位于 Skill、制度文档、工具 adapter 和评测数据；Runtime 使用通用的 `Case`、`Run`、`Event`、`Approval`、`Tool`、`Timer`、`Memory`、`Skill`、`Artifact` 抽象。
 
-- 文档格式复杂，解析和入库成本高。
-- 单纯关键词或向量检索不稳定，条款编号和语义问题难以兼顾。
-- LLM 回答容易缺乏引用来源，难以判断是否幻觉。
-- Agent 一旦能调用工具，就可能产生不可控副作用。
-- 企业场景需要权限隔离、审批、审计、trace 和评测。
+## 为什么这个场景有落地价值
 
-本项目的答案是：RAG 提供可追溯证据，Agent Harness 负责治理 agent 如何使用这些证据和工具。
+企业入职、转正、调岗、请假和报销有相同的工程难题：制度分散且有版本/适用范围，流程跨 HR、主管、员工和 IT，持续数天或数月，包含 SLA、审批和外部系统写操作，并要求回答“为什么这样执行、引用了什么、谁批准了什么”。
 
-## 核心亮点
+传统 RAG 只能回答“应该怎么办”；传统 workflow 只能执行预编码的固定路径。EnterpriseMind 用 RAG 理解非结构化制度，用 deterministic Harness 约束 Agent 的执行权。
 
-- **Agent Run 生命周期**：完整记录意图识别、检索、计划、工具调用、审批、恢复执行和最终回答。
-- **Human-in-the-Loop 审批**：写入型工具如 `create_mock_hr_ticket` 必须等待用户审批。
-- **RAG 证据层**：所有回答都基于 evidence 和 citations，证据不足时拒答或追问。
-- **混合检索**：Dense vector、Sparse / BM25、RRF、reranker 组合处理语义查询和精确条款查询。
-- **多格式文档入库**：Docling / MinerU 解析企业文档，保留章节、页码、表格和引用映射。
-- **ACL 权限隔离**：检索前过滤，生成前二次校验，避免越权 evidence 进入上下文。
-- **评测与可观测**：RAGAS 指标 + Phoenix / OpenTelemetry trace，支持 A/B 对照和链路排查。
-- **V2 扩展**：GraphRAG / LightRAG 与 MCP 作为增强方向，不阻塞 V1。
+## 标准 Case
 
-## 标准 Demo
+1. 创建 `HRCase`，固定 `ExecutionManifest`。
+2. 加载通过评测门禁的 `hr_onboarding` Skill。
+3. 通过只读 A2A Policy Research Agent 研究制度，返回版本化 evidence artifact。
+4. 生成跨 HR、IT、主管和 Harness 的计划。
+5. MCP 写工具准备创建工单，在执行前生成绑定参数、证据版本、policy version 和 manifest hash 的审批。
+6. Case 暂停为 `waiting_approval`，结构化 Context Snapshot 保留治理不变量。
+7. 人工批准后恢复，执行前重新校验授权，SideEffect Ledger 保证 effectively-once。
+8. 写入 episodic memory，并调度可恢复的试用期 `DurableTimer`。
+9. 所有动作形成 append-only Artifact Timeline，可通过 sequence cursor/SSE 断线续读。
 
-用户输入：
+## 架构
 
-> 新员工入职到转正要办哪些事项？
+```mermaid
+flowchart LR
+    UI["Case Operations Console"] --> API["FastAPI Protocol Layer"]
+    API --> HARNESS["Agent Harness"]
+    HARNESS --> ES["Append-only Event Store"]
+    ES --> OUTBOX["Transactional Outbox"]
+    ES --> PROJ["Case Projection"]
+    HARNESS --> RAG["RAG Evidence Layer"]
+    RAG --> DV["DocumentVersion + ACL + Freshness"]
+    HARNESS --> APPROVAL["Approval Governance"]
+    APPROVAL --> LEDGER["SideEffect Ledger"]
+    HARNESS --> TIMER["Durable Timer + Lease"]
+    HARNESS --> MEMORY["Context / Memory / Skill"]
+    HARNESS --> MCP["MCP 2025-11-25 Local HTTP"]
+    HARNESS --> A2A["Read-only Policy Research A2A"]
+    HARNESS --> OTEL["Metrics + OTel / Phoenix"]
+```
 
-系统流程：
+完整说明见 [工业化架构文档](docs/architecture/enterprise-agent-runtime-v2.md) 和 [模块 15 规范](docs/modules/15-AgentRuntime长期Case与协议治理.md)。
 
-1. 创建 `AgentRun`。
-2. 检索 HR 制度文档 evidence。
-3. 生成办理计划和 checklist。
-4. 准备调用 `create_mock_hr_ticket`。
-5. Harness 暂停并展示审批卡片。
-6. 用户 Approve / Edit / Reject。
-7. 审批通过后从 checkpoint 恢复，返回 mock ticket result、citations 和 trace。
+## 已实现能力
 
-## 技术栈
+### Runtime Kernel
 
-- 当前已实现：Python 3.12、FastAPI、Pydantic v2、SQLAlchemy 2.0、LangGraph、Jinja2、aiohttp、Celery、pytest、pytest-asyncio、pytest-cov、Vue 3、Element Plus、Pinia、Playwright。
-- 当前运行模式：fallback mode 使用 pure Python / in-memory / deterministic fake；full mode 已接入 PostgreSQL、Redis、Milvus、Elasticsearch、MinIO、Qwen 真实 chat / embedding / rerank adapter，以及可选 Celery 文档入库链路。
-- 规划后续接入：Docling / MinerU、RAGAS、Phoenix / OpenTelemetry、Docker Compose 深化。
+- Append-only Event Store、单调 sequence、optimistic version、命令幂等和 SHA-256 hash chain。
+- event/outbox 同事务写入；outbox claim、超时回收、ack 和 backlog 指标。
+- PostgreSQL/SQLAlchemy 与 in-memory fake 使用同一 async Protocol。
+- 幂等 Case projection、重启恢复和 projection rebuild。
+- run lease + fencing token、durable timer 单次 claim。
 
-## 文档导航
+### Execution Governance
 
-- `AGENTS.md`：通用 agent 入口记忆。
-- `CLAUDE.md`：Claude 类 agent 入口记忆。
-- `项目亮点.md`：项目亮点、面试话术和参考资料。
-- `开发规划.md`：16 阶段完整开发规划。
-- `docs/CODING_STANDARDS.md`：代码实现规范。
-- `docs/modules/00-模块规范总览.md`：模块规范总入口。
-- `docs/modules/*.md`：每个模块的详细开发规范。
-- `docs/DECISIONS.md`：关键产品和技术决策。
-- `RAG项目面试亮点.md`：早期参考材料，仅作追溯。
+- 审批 revision、expiry、revoke、supersede、subject hash、policy/manifest/evidence 绑定。
+- admin maker-checker；审批通过不等于越权，恢复执行前重新授权。
+- SideEffect Ledger 的 reservation/succeeded/unknown 状态与 reconciliation 边界。
+- `ExecutionManifest` 固定 model、prompt、Skill、tool schema、policy、retrieval、context 和 code 版本。
 
-## 推荐开发顺序
+### Context, Memory, Skill
 
-1. 先实现后端纯领域闭环，不依赖 Docker 和云 API。
-2. 再暴露 FastAPI 接口，打通 Agent Run、审批、评测。
-3. 再接 PostgreSQL、Redis、Milvus、Elasticsearch、MinIO、Celery。
-4. 再做前端控制台，展示 evidence、approval、trace、eval。
-5. 最后做 GraphRAG / MCP / Phoenix 深度增强。
+- write/select/compress/isolate 的结构化 Context Snapshot，原始事件永不删除。
+- 未决审批边界与 governance event pinning，压缩前后 invariant hash 校验。
+- tenant-isolated episodic memory、provenance、prompt injection quarantine 和 forget。
+- Skill source allowlist、checksum、eval promotion gate、draft/active/deprecated/revoked 生命周期。
 
-## 面试可讲版本
+### RAG Evidence
 
-这个项目不是普通 RAG 问答，而是 Agent Harness + RAG 的企业知识任务平台。RAG 负责提供制度证据，Agent Harness 负责控制 agent 的执行过程，包括任务规划、工具调用、审批中断、状态恢复、ACL 过滤、trace 和评测。比如用户问“新员工入职到转正要办哪些事项”，系统会先检索 HR 制度证据，再生成办理清单；如果要创建 HR 工单，Harness 会暂停并等待用户审批，通过后才执行模拟工具。这样既能回答问题，也能体现企业级 agent 的安全、可控和可追踪。
+- Markdown/Plain Text/Office fallback 入库、Celery 可选异步执行。
+- SHA-256 稳定 chunk ID、不可变 `DocumentVersion`、active-version 检索过滤。
+- Dense + BM25 + RRF + reranker、ACL 下推、citations 和 evidence freshness。
+- Qwen chat / `text-embedding-v4` / `qwen3-rerank` adapters；无 key 时 deterministic fake。
 
-## 当前状态（2026-06-01）
+### Protocol and Safety
 
-后端 pure Python / in-memory / deterministic fake 主链路已经完成，并补齐 FastAPI fallback API、Vue 3 + Element Plus 前端控制台与 Playwright E2E 验收闭环：
+- 本地 Streamable HTTP 风格 MCP 2025-11-25：initialize、tools、resources、prompts、structured output。
+- A2A AgentCard、Task、Message、Artifact；Policy Research Agent 独立只读权限域。
+- 真实 trajectory Safety Eval：越权检索、审批绕过、重复副作用、缺失引用。
+- OTel/Phoenix 关联 `case_id/run_id/event_id`；Runtime metrics 暴露审批、协议、projection 和安全零值。
 
-- 数据模型与 Schema：ORM / Pydantic schema / 审批与工具状态枚举。
-- 文档上传与入库：Storage Protocol / LocalFileStorage / IngestionPipeline 七阶段状态。
-- 文档解析与分块：Markdown、Plain Text、Structural / Semantic / Hybrid chunking。
-- in-memory 检索：mock embedding、vector store、BM25、RRF、mock reranker、EvidenceBundle。
-- Agent Harness：Agent Run、工具注册与执行、写入型工具审批、resume、tool_calls 历史记录。
-- LangGraph 工作流：MemorySaver、dynamic interrupt/resume、SSE 事件。
-- Grounded Answer 与评测：Jinja2 prompt、citation、低置信度处理、fact check、fake RAGAS。
-- ACL、安全与可观测：权限过滤、Prompt Injection、PII 脱敏、rate limit、audit log、fallback trace。
-- FastAPI API：health、documents、ingestions、agent-runs、approvals、eval runs、统一错误格式和 RequestID。
-- 前端控制台：文档入库状态、Agent Run、evidence、plan/steps、approval card、tool result、trace、eval 页面。
-- 测试质量门禁：unit / service / api 分层、pytest markers、quality gate 脚本。
-- 2026-06-01 审查补强：Milvus 检索 ACL 下推到查询表达式、入库重试清理旧向量索引、Approve 决策写入审计步骤、Elasticsearch 宿主端口统一为 9201。
-- 2026-06-01 full-mode 补强：PostgreSQL 快照持久化先 upsert tool_calls 再 upsert approvals，并保存 approval decision / decided_by / decided_at，修复 full 模式审批恢复时的外键失败。
-- 2026-06-01 真实 AI 链路：Qwen chat completion、text-embedding-v4 embedding、qwen3-rerank reranker adapter；有 `QWEN_API_KEY` 时 full mode 启用真实 AI，缺 key 时保持 fake。
-- 2026-06-01 Celery 入库链路：Celery app、文档入库 dispatcher、worker job、Redis/In-memory ingestion task store、storage-backed payload；默认 `sync`，开启 `INGESTION_EXECUTION_MODE=celery` 后上传返回 queued。
-- 2026-06-01 真实 embedding 批处理：`EMBEDDING_BATCH_SIZE=10`，避免 Qwen embedding 单批超过 10 条。
-- 2026-06-01 最终构建补强：新增 `AGENT_RUN_ENGINE=langgraph` 可选真实 LangGraph API 编排、Phoenix / OpenTelemetry OTLP trace、MilvusClient adapter、Redis `aclose()` 与前端动态 health 状态。
+## API
 
-当前 V1 主链路已完整接入：fallback demo、可选 LangGraph API 编排、Qwen chat/embedding/rerank、Celery 入库、PostgreSQL / Redis / Milvus / Elasticsearch / MinIO adapter、Phoenix / OTel trace 与前端控制台。GraphRAG / LightRAG、MCP、真实 HR 系统、完整生产多租户 RBAC 仍作为 V2 非目标保留。
+| Endpoint | 用途 |
+| --- | --- |
+| `POST /cases` | 创建长期 Case |
+| `GET /cases` | Case 运维队列 |
+| `POST /cases/{id}/start` | 启动 HR Reference workflow |
+| `POST /cases/{id}/approvals/{approval_id}` | 审批并恢复 |
+| `POST /cases/{id}/policies/refresh` | 制度更新后重建 evidence/plan/approval |
+| `GET /cases/{id}/events` | sequence cursor 读取 Timeline |
+| `GET /cases/{id}/stream` | 可断线续读 SSE |
+| `POST /mcp` | MCP JSON-RPC |
+| `GET /.well-known/agent-card.json` | A2A AgentCard |
+| `POST /a2a/tasks` | 只读制度研究任务 |
+| `GET /metrics/runtime` | Runtime 工程指标 |
 
-常用验证命令：
+原有 `/agent-runs`、文档入库、评测、health API 继续保留。
 
-```bash
-.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
-.\.venv\Scripts\python.exe -m pytest tests\integration -m integration -q -p no:cacheprovider
-.\.venv\Scripts\python.exe scripts\quality_gate.py
-.\.venv\Scripts\python.exe scripts\v1_final_check.py
+## 运行
+
+默认 fallback 不需要 Docker、云 key 或外部网络：
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+cd frontend
+npm run dev
+```
+
+打开 `http://127.0.0.1:5173`。`/` 是 Case 运维台，`/runs` 是兼容的单轮 Agent Run 实验台。
+
+full mode 使用 PostgreSQL、Redis、Milvus、Elasticsearch、MinIO，并可开启 Qwen、Celery、LangGraph 和 Phoenix：
+
+```powershell
+$env:APP_MODE='full'
+.\.venv\Scripts\python.exe -m uvicorn app.main:app
+```
+
+配置项见 `.env.example` 和 `docker-compose.yml`。
+
+## 验证
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\unit tests\service tests\api -q -p no:cacheprovider --basetemp runtime_pytest_v2
 .\.venv\Scripts\python.exe -m compileall -q app tests scripts
-.\.venv\Scripts\python.exe scripts\smoke_qwen_ai.py
-.\.venv\Scripts\celery.exe -A app.services.ingestion.celery_app.celery_app worker --loglevel=info --pool=solo
-cd frontend && npm run build
-cd frontend && npm run test:e2e
-cd frontend && $env:APP_MODE='full'; npm run test:e2e  # 需要外部中间件已启动
+cd frontend
+.\node_modules\.bin\vue-tsc.cmd -b
+npm run build
+npm run test:e2e
 ```
 
-最新验收记录（2026-06-01）：
+单元、service 和 API 测试不依赖 Docker、云 key 或外部网络。full-mode integration 需要本地基础设施。
 
-- 后端基线：`197 passed`，`11 deselected`，仅 FastAPI TestClient deprecation warning。
-- 质量门禁：全部通过（内部基线 `197 passed`，`11 deselected`）。
-- V1 收尾脚本：通过；full-mode 外部服务端口当前标记为 blocked，默认不阻塞 V1 closure。
-- integration：本轮因 PostgreSQL / Redis / Milvus / Elasticsearch / MinIO 本地端口均未启动而阻塞；Docker CLI 当前不可用。上一轮这些 adapter 已通过 full mode 验证。
-- Qwen 冒烟：本轮沙箱网络被拒且外部网络审批因额度限制未获准；上一轮 chat / embedding / rerank 均为 ok，embedding dimension=1024。
-- Celery eager smoke：`run_ingestion_task.delay(...).get()` 返回 `ready 1.0 2`。
-- demo 文档：`demo_docs/hr_onboarding_regularization_policy_2026.md` 已通过 full-mode API 入库，返回 `doc_b9cd0f168cc3` / `ing_4424c0b17fba`，状态 `ready`，20 个分块。
-- 前端构建：通过；仅第三方 `@vueuse/core` pure annotation 与 chunk size warning。
-- Playwright E2E fallback：`5 passed`，覆盖文档入库、Agent Run/SSE、Approve/Edit/Reject、citations、trace。
-- full mode `/health`：上一轮为 200 且 PostgreSQL / Redis / Milvus / Elasticsearch / MinIO 均为 up；本轮当前机器这些端口均拒绝连接，需先启动外部服务。
+## 明确边界
 
-## V1 收尾
+- 不接真实 HR 系统，不实现工资、考勤或完整 HR SaaS。
+- 不实现完整生产多租户 IAM/RBAC；当前 ACL 是可测试的工程边界。
+- MCP/A2A 是本地标准形态的 reference implementation，未使用官方 SDK 的完整 session/transport 机制。
+- 不引入 Kafka、Temporal、Kubernetes 或 GraphRAG 主链路；这些不是证明 Harness 治理能力的必要条件。
 
-本仓库当前按 V1 closure 收尾，V2 不继续扩展。V1 边界包括 fallback demo、FastAPI API、前端控制台、Agent Harness 审批恢复、RAG evidence/citations、真实 Qwen adapter、Celery 入库、full-mode 基础设施 adapter、可选 LangGraph API 编排和 Phoenix/OTel trace。
+## 面试开场
 
-V2 冻结项包括 GraphRAG / LightRAG、MCP Server、真实 HR 系统和完整生产多租户 RBAC。
+> 企业内部很多流程不是简单问答，而是由非结构化制度驱动、跨角色和跨天运行，并包含有副作用的系统操作。普通 RAG 只能回答，普通 workflow 又无法理解制度和处理例外。我实现了一个以 RAG 为证据层、以 Agent Harness 为治理层的企业流程 Agent Runtime，并用员工入职到转正的长期 Case 验证审批、恢复、幂等、记忆、协议和安全评测。
 
-新增 V1 收尾检查脚本：
+## 文档
 
-```powershell
-.\.venv\Scripts\python.exe scripts\v1_final_check.py
-```
-
-默认脚本会列出 V1 代码验收命令，并探测 PostgreSQL、Redis、MinIO、Elasticsearch、Milvus 本地端口。外部服务未启动时会标记为 blocked，但不让 V1 closure 失败。需要把 full-mode 外部服务作为硬验收时运行：
-
-```powershell
-.\.venv\Scripts\python.exe scripts\v1_final_check.py --require-full
-```
+- `AGENTS.md` / `CLAUDE.md`：开发 agent 入口与当前状态。
+- `项目亮点.md`：简历和面试技术叙事。
+- `开发规划.md`：历史 16 阶段与 Runtime 深化阶段。
+- `docs/CODING_STANDARDS.md`：代码规范。
+- `docs/modules/00-模块规范总览.md`：模块规范入口。
+- `docs/DECISIONS.md`：关键产品与技术决策。

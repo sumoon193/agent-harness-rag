@@ -63,3 +63,20 @@ class SafetyEvalReport(BaseModel):
         default_factory=list,
         description="单条结果",
     )
+
+
+class TrajectorySafetyViolation(BaseModel):
+    """从真实事件轨迹发现的安全违规。"""
+
+    code: str
+    event_id: str
+    sequence: int
+    detail: str
+
+
+class TrajectorySafetyReport(BaseModel):
+    """顺序敏感的 Agent trajectory 安全报告。"""
+
+    passed: bool
+    event_count: int
+    violations: list[TrajectorySafetyViolation] = Field(default_factory=list)

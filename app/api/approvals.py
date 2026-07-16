@@ -49,7 +49,14 @@ async def submit_approval(
             pass
 
         approvals = await container.run_manager.get_run_approvals(run_id)
-        approval = next(item for item in approvals if item.id == approval_id)
+        approval = next(
+            (
+                item
+                for item in approvals
+                if item.supersedes_approval_id == approval_id
+            ),
+            next(item for item in approvals if item.id == approval_id),
+        )
         return ApprovalSubmitResponse(
             approval_id=approval.id,
             status=approval.status,
@@ -69,7 +76,7 @@ async def submit_approval(
     if approval.status == ApprovalStatus.APPROVED:
         tool_call = await container.run_manager.execute_approved_tool(
             run_id=run_id,
-            approval_id=approval_id,
+            approval_id=approval.id,
             user_context=user_context,
         )
         await container.run_manager.complete_run(

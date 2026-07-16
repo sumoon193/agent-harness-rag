@@ -16,7 +16,7 @@ from app.services.retrieval.store.base import ACLFilter
 
 logger = logging.getLogger(__name__)
 
-INDEX_NAME = "document_chunks"
+INDEX_NAME = "document_chunks_v2"
 
 
 class ElasticsearchBM25Store:
@@ -41,6 +41,7 @@ class ElasticsearchBM25Store:
             "mappings": {
                 "properties": {
                     "document_id": {"type": "keyword"},
+                    "document_version": {"type": "keyword"},
                     "chunk_text": {"type": "text"},
                     "context_prefix": {"type": "text"},
                     "heading_path": {"type": "keyword"},
@@ -58,10 +59,11 @@ class ElasticsearchBM25Store:
         await self.ensure_index()
 
         actions = []
-        for i, chunk in enumerate(chunks):
-            actions.append({"index": {"_index": self._index, "_id": f"{chunk.document_id}_{i:06d}"}})
+        for chunk in chunks:
+            actions.append({"index": {"_index": self._index, "_id": chunk.id}})
             actions.append({
                 "document_id": chunk.document_id,
+                "document_version": chunk.document_version,
                 "chunk_text": chunk.chunk_text,
                 "context_prefix": chunk.context_prefix or "",
                 "heading_path": chunk.heading_path or "",
@@ -129,6 +131,7 @@ class ElasticsearchBM25Store:
             results.append(RetrievalResult(
                 chunk_id=hit["_id"],
                 document_id=src.get("document_id", ""),
+                document_version=src.get("document_version", "v1"),
                 chunk_text=src.get("chunk_text", ""),
                 context_prefix=src.get("context_prefix", ""),
                 score=normalized,

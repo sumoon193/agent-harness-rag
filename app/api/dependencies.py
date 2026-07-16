@@ -186,11 +186,13 @@ class ServiceContainer:
         self.approval_manager = ApprovalManager(step_logger=self.step_logger)
         self.tool_registry = _build_tool_registry()
         self.acl_validator = ACLValidator()
+        self._init_runtime_services()
         self.tool_executor = ToolExecutor(
             registry=self.tool_registry,
             approval_manager=self.approval_manager,
             step_logger=self.step_logger,
             acl_validator=self.acl_validator,
+            side_effect_ledger=self.side_effect_ledger,
         )
 
         # 根据模式选择服务实现
@@ -233,6 +235,7 @@ class ServiceContainer:
             vector_store=self.vector_store,
             bm25_store=self.bm25_store,
             reranker=self.reranker,
+            document_version_registry=self.document_version_registry,
         )
         self._init_graph_runner()
 
@@ -279,6 +282,7 @@ class ServiceContainer:
             vector_store=self.vector_store,
             bm25_store=self.bm25_store,
             reranker=self.reranker,
+            document_version_registry=self.document_version_registry,
         )
 
         # Redis 速率限制器
@@ -314,6 +318,152 @@ class ServiceContainer:
             graph=compiled_graph,
             run_manager=self.run_manager,
             step_logger=self.step_logger,
+            tracer=self.tracer,
+        )
+
+    def _init_runtime_services(self) -> None:
+        """组装长期 Case、Memory、Skill、MCP 与 A2A fallback 服务。"""
+        from app.services.a2a.policy_research import InProcessA2AClient, PolicyResearchA2AAgent
+        from app.services.agent.tool_executor import ToolExecutor
+        from app.services.agent.tool_registry import ToolRegistry
+        from app.services.context.compactor import ContextCompactor
+        from app.services.mcp.adapter import McpApprovalBridge, McpToolAdapter, McpToolDiscovery
+        from app.services.mcp.fake_server import FakeMcpServer
+        from app.services.mcp.protocol_server import LocalMcpProtocolServer
+        from app.services.memory.store import InMemoryEpisodicMemoryStore
+        from app.services.observability.runtime_metrics import RuntimeMetrics
+        from app.services.runtime.case_service import CaseService
+        from app.services.runtime.clock import SystemClock
+        from app.services.runtime.event_store import InMemoryEventStore
+        from app.services.runtime.lease import InMemoryLeaseStore
+        from app.services.runtime.onboarding_workflow import OnboardingCaseWorkflow
+        from app.services.runtime.side_effects import InMemorySideEffectLedger
+        from app.services.runtime.timer_coordinator import TimerCoordinator
+        from app.services.runtime.timers import InMemoryTimerStore
+        from app.services.skills.registry import SkillRegistry
+
+        clock = SystemClock()
+        self.runtime_metrics = RuntimeMetrics()
+        if self.settings.app_mode == "full":
+            from app.db.session import get_session_factory
+            from app.services.ingestion.document_versions import (
+                SqlAlchemyDocumentVersionRegistry,
+            )
+            from app.services.runtime.sqlalchemy_adapters import (
+                SqlAlchemyCaseProjectionStore,
+                SqlAlchemyEventStore,
+                SqlAlchemyLeaseStore,
+                SqlAlchemySideEffectLedger,
+                SqlAlchemyTimerStore,
+            )
+
+            runtime_sessions = get_session_factory()
+            self.event_store = SqlAlchemyEventStore(
+                runtime_sessions,
+                metrics=self.runtime_metrics,
+            )
+            self.projection_store = SqlAlchemyCaseProjectionStore(runtime_sessions)
+            self.case_service = CaseService(
+                event_store=self.event_store,
+                projection_store=self.projection_store,
+                metrics=self.runtime_metrics,
+            )
+            self.timer_store = SqlAlchemyTimerStore(runtime_sessions)
+            self.side_effect_ledger = SqlAlchemySideEffectLedger(runtime_sessions)
+            self.lease_store = SqlAlchemyLeaseStore(runtime_sessions)
+            self.document_version_registry = SqlAlchemyDocumentVersionRegistry(
+                runtime_sessions
+            )
+        else:
+            from app.services.ingestion.document_versions import (
+                InMemoryDocumentVersionRegistry,
+            )
+
+            self.event_store = InMemoryEventStore(metrics=self.runtime_metrics)
+            self.projection_store = None
+            self.case_service = CaseService(
+                event_store=self.event_store,
+                metrics=self.runtime_metrics,
+            )
+            self.timer_store = InMemoryTimerStore(clock=clock)
+            self.side_effect_ledger = InMemorySideEffectLedger(clock=clock)
+            self.lease_store = InMemoryLeaseStore(clock=clock)
+            self.document_version_registry = InMemoryDocumentVersionRegistry()
+        self.timer_coordinator = TimerCoordinator(
+            case_service=self.case_service,
+            timer_store=self.timer_store,
+        )
+        self.policy_research_agent = PolicyResearchA2AAgent()
+        self.a2a_client = InProcessA2AClient(self.policy_research_agent)
+        self.context_compactor = ContextCompactor()
+        if self.settings.app_mode == "full":
+            from app.services.memory.store import SqlAlchemyEpisodicMemoryStore
+
+            self.memory_store = SqlAlchemyEpisodicMemoryStore(
+                runtime_sessions,
+                clock=clock,
+            )
+        else:
+            self.memory_store = InMemoryEpisodicMemoryStore(clock=clock)
+        self.skill_registry = SkillRegistry(
+            allowed_source_prefixes=["repo://skills/"],
+            activation_threshold=0.9,
+            clock=clock,
+        )
+        onboarding_skill = self.skill_registry.register(
+            name="hr_onboarding",
+            version="1.0.0",
+            content="先研究当前制度，再生成跨角色计划；所有写操作必须审批。",
+            source_uri="repo://skills/hr_onboarding/1.0.0",
+            allowed_tools=["create_mock_hr_ticket"],
+            required_permissions=["hr.document.read", "hr.ticket.write"],
+        )
+        self.skill_registry.activate(onboarding_skill.id, eval_score=0.98)
+
+        mcp_registry = ToolRegistry()
+        mcp_executor = ToolExecutor(
+            registry=mcp_registry,
+            approval_manager=self.approval_manager,
+            step_logger=self.step_logger,
+            acl_validator=self.acl_validator,
+            side_effect_ledger=self.side_effect_ledger,
+        )
+        self.mcp_adapter = McpToolAdapter(
+            McpToolDiscovery(FakeMcpServer()),
+            mcp_registry,
+            mcp_executor,
+        )
+        self.mcp_adapter.register_discovered_tools()
+        self.mcp_approval_bridge = McpApprovalBridge(
+            mcp_executor,
+            self.approval_manager,
+        )
+        self.mcp_protocol_server = LocalMcpProtocolServer(
+            tool_adapter=self.mcp_adapter,
+            resources={
+                "policy://hr/onboarding": {
+                    "name": "员工入职与转正制度",
+                    "mimeType": "text/markdown",
+                    "text": "新员工入职材料、试用期目标与转正评估要求。",
+                }
+            },
+            prompts={
+                "plan_hr_case": "基于制度证据生成长期 Case 计划，写操作必须审批。"
+            },
+        )
+        self.onboarding_workflow = OnboardingCaseWorkflow(
+            case_service=self.case_service,
+            event_store=self.event_store,
+            skill_registry=self.skill_registry,
+            memory_store=self.memory_store,
+            context_compactor=self.context_compactor,
+            a2a_client=self.a2a_client,
+            mcp_adapter=self.mcp_adapter,
+            mcp_approval_bridge=self.mcp_approval_bridge,
+            approval_manager=self.approval_manager,
+            timer_coordinator=self.timer_coordinator,
+            clock=clock,
+            metrics=self.runtime_metrics,
             tracer=self.tracer,
         )
 

@@ -1,7 +1,7 @@
 /**
  * 路由配置。
  *
- * 4 个路由：AgentConsole（主页面）、DocumentUpload、EvalResult、RunDetail。
+ * Case 运维台是主页面，单轮 Agent Run 保留为兼容视图。
  */
 import { createRouter, createWebHistory } from 'vue-router'
 
@@ -10,6 +10,11 @@ const router = createRouter({
   routes: [
     {
       path: '/',
+      name: 'Cases',
+      component: () => import('@/views/CaseConsole.vue'),
+    },
+    {
+      path: '/runs',
       name: 'AgentConsole',
       component: () => import('@/views/AgentConsole.vue'),
     },

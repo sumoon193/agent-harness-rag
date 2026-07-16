@@ -10,13 +10,15 @@ import uuid
 from typing import Any
 
 from app.core.exceptions import PermissionError as AppPermissionError
-from app.schemas.enums import ToolCallStatus
+from app.schemas.enums import SideEffectStatus, ToolCallStatus
 from app.schemas.tool import ToolCall
 from app.schemas.user import UserContext
 from app.services.agent.approval_manager import ApprovalManager
 from app.services.agent.step_logger import StepLogger
 from app.services.agent.tool_registry import ToolRegistry
 from app.services.security.acl_validator import ACLValidator
+from app.services.runtime.interfaces import SideEffectLedger
+from app.services.runtime.side_effects import InMemorySideEffectLedger
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,8 @@ class ToolExecutor:
         registry: ToolRegistry,
         approval_manager: ApprovalManager,
         step_logger: StepLogger,
-        acl_validator: ACLValidator | None = None
+        acl_validator: ACLValidator | None = None,
+        side_effect_ledger: SideEffectLedger | None = None,
     ) -> None:
         """
         初始化工具执行器。
@@ -48,13 +51,18 @@ class ToolExecutor:
         self._approval_manager = approval_manager
         self._step_logger = step_logger
         self._acl_validator = acl_validator or ACLValidator()
+        self._side_effect_ledger = side_effect_ledger or InMemorySideEffectLedger()
 
     async def execute(
         self,
         run_id: str,
         tool_name: str,
         parameters: dict[str, Any],
-        user_context: UserContext
+        user_context: UserContext,
+        *,
+        approval_evidence: list[dict[str, Any]] | None = None,
+        policy_version: str = "",
+        execution_manifest_hash: str = "",
     ) -> ToolCall:
         """
         执行工具。
@@ -103,7 +111,10 @@ class ToolExecutor:
                 tool_name=tool_name,
                 parameters=parameters,
                 risk_level=tool.risk_level,
-                user_context=user_context
+                user_context=user_context,
+                evidence=approval_evidence,
+                policy_version=policy_version,
+                execution_manifest_hash=execution_manifest_hash,
             )
 
             # 记录步骤
@@ -220,9 +231,43 @@ class ToolExecutor:
         # 使用审批后的参数
         parameters = approval_request.parameters
         handler = self._registry.get_handler(approval_request.tool_name)
+        self._approval_manager.validate_for_execution(
+            approval_id,
+            tool_name=approval_request.tool_name,
+            parameters=parameters,
+            evidence=approval_request.evidence,
+            policy_version=approval_request.policy_version,
+            execution_manifest_hash=approval_request.execution_manifest_hash,
+        )
+        effect_record = await self._side_effect_ledger.reserve(
+            idempotency_key=f"{run_id}:{tool_call_id}",
+            tool_name=approval_request.tool_name,
+            subject_hash=approval_request.subject_hash,
+        )
+        if effect_record.status == SideEffectStatus.SUCCEEDED:
+            return ToolCall(
+                id=tool_call_id,
+                run_id=run_id,
+                tool_name=approval_request.tool_name,
+                parameters=parameters,
+                result=effect_record.result,
+                status=ToolCallStatus.COMPLETED,
+                approval_required=True,
+            )
+        if effect_record.status == SideEffectStatus.UNKNOWN:
+            return ToolCall(
+                id=tool_call_id,
+                run_id=run_id,
+                tool_name=approval_request.tool_name,
+                parameters=parameters,
+                result={"error": "side effect result is unknown; reconciliation required"},
+                status=ToolCallStatus.FAILED,
+                approval_required=True,
+            )
 
         try:
             result = await handler.execute(parameters, user_context)
+            await self._side_effect_ledger.mark_succeeded(effect_record.id, result)
 
             # 更新 ToolCall 状态
             tool_call = ToolCall(
@@ -255,6 +300,7 @@ class ToolExecutor:
             return tool_call
 
         except Exception as e:
+            await self._side_effect_ledger.mark_unknown(effect_record.id, str(e))
             # 执行失败
             tool_call = ToolCall(
                 id=tool_call_id,

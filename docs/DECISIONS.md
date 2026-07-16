@@ -76,7 +76,7 @@
 
 ## D-010：前端是控制台，不是营销页
 
-**决策：** 前端做操作型控制台，当前实现采用 Vue 3 + Element Plus，第一屏展示 Agent Run、approval、evidence 和 trace，并提供文档入库与评测入口。
+**决策：** 前端做操作型控制台，当前实现采用 Vue 3 + Element Plus，第一屏展示 Case queue、Artifact Timeline、approval、timer 和 runtime metrics；单轮 Agent Run 移到兼容视图。
 
 **原因：** 项目需要演示真实工作流，而不是宣传页面。
 
@@ -105,3 +105,43 @@
 **原因：** V1 已完成 Agent Harness + RAG 主链路。继续只强调 RAG 容易与大众简历重合，需要把重点上移到 Agent 执行治理、评测、工具边界和失败修复闭环。
 
 **影响：** 新能力必须保持 fake/local first。MCP adapter 不能绕过现有 Tool Registry、approval、ACL、citation 和 trace 约束。所有新增评测必须可重复，不能依赖真实云模型作为单元测试前提。
+
+## D-014：HR 是 Reference Application，不是平台边界
+
+**决策：** 平台层使用通用 Case/Run/Event/Approval/Timer/Memory/Skill/Artifact；HR 只存在于 Skill、policy、adapter 和 eval dataset。
+
+**原因：** 面试价值来自场景合理逼出的工程问题，而不是把项目扩展成 HR SaaS。
+
+**影响：** 主 Demo 改为入职到转正长期 Case；报销和请假用于证明 Harness 未硬编码单一路径。
+
+## D-015：Checkpoint、Event Store 和 Projection 分离
+
+**决策：** LangGraph checkpoint 负责执行位置，append-only Event Store 负责审计事实，PostgreSQL projection 负责查询/UI。
+
+**原因：** 三者的保留周期、查询模型、恢复目标和 schema 演进方式不同。
+
+**影响：** event/outbox 同事务；projection 必须幂等并可 rebuild；SSE cursor 使用持久 sequence。
+
+## D-016：外部副作用只承诺 effectively-once
+
+**决策：** 使用 SideEffect Ledger、业务幂等键和 reconciliation，不宣称跨外部系统 exactly-once。
+
+**原因：** 本地数据库事务无法覆盖未知外部系统；请求发出后的超时结果可能未知。
+
+**影响：** `unknown` 状态不得盲目重试，重复 checkpoint resume 返回已缓存成功结果。
+
+## D-017：MCP/A2A 只在权限边界清晰时使用
+
+**决策：** MCP 是工具/资源协议边界；A2A 只委托给独立只读 Policy Research Agent，主 Harness 保留计划、审批和写权限。
+
+**原因：** 多 Agent 只有在独立部署、权限和维护域时才有价值。
+
+**影响：** 协议调用必须经过 ACL、ApprovalManager、SideEffect Ledger 和 trace；单元测试使用本地 fake。
+
+## D-018：制度和审批都必须版本化
+
+**决策：** DocumentVersion、稳定 chunk ID、EvidenceFreshness 和 ExecutionManifest 共同固定一次执行依据；审批绑定 evidence/policy/manifest hash。
+
+**原因：** 跨天审批时制度、人员权限和工具 schema 可能变化。
+
+**影响：** 过期 evidence/approval 必须拒绝执行并重新研究、计划和审批。

@@ -16,6 +16,7 @@ class RetrievalResult(BaseModel):
     """
     chunk_id: str = Field(description="分块 ID")
     document_id: str = Field(description="文档 ID")
+    document_version: str = Field(default="v1", description="不可变文档版本 ID")
     chunk_text: str = Field(description="分块文本")
     context_prefix: str = Field(
         default="",

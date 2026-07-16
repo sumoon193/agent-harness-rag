@@ -10,7 +10,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.schemas.enums import RunStatus
+from app.schemas.enums import ApprovalDecisionType, RunStatus
+from app.schemas.runtime import HRCase
 
 
 # ── 通用 ──────────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ class DocumentCreateRequest(BaseModel):
 class DocumentCreateResponse(BaseModel):
     """文档上传响应。"""
     id: str = Field(description="文档 ID")
+    document_version: str = Field(default="v1", description="不可变文档版本 ID")
     task_id: str = Field(description="入库任务 ID")
     status: str = Field(description="入库状态")
     message: str = Field(default="文档已接收，正在处理")
@@ -135,3 +137,71 @@ class EvalRunResponse(BaseModel):
     status: str
     metrics: dict[str, float] = Field(default_factory=dict)
     message: str = Field(default="评测完成")
+
+
+# ── Long-running Case ────────────────────────────────────────────────
+
+class CaseCreateRequest(BaseModel):
+    """创建长期业务 Case。"""
+
+    title: str = Field(min_length=1, max_length=255)
+    tenant_id: str
+    subject_user_id: str
+    actor_id: str
+    command_id: str = Field(min_length=1, max_length=128)
+
+
+class CaseMessageRequest(BaseModel):
+    """向 Case 追加跨轮次消息。"""
+
+    message: str = Field(min_length=1, max_length=4000)
+    actor_id: str
+    command_id: str = Field(min_length=1, max_length=128)
+    expected_version: int = Field(ge=1)
+
+
+class CaseWorkflowStartRequest(BaseModel):
+    """启动 HR Reference Application 主工作流。"""
+
+    actor_id: str
+    command_id: str = Field(min_length=1, max_length=128)
+    expected_version: int = Field(ge=1)
+
+
+class CaseApprovalRequest(BaseModel):
+    """对 Case 中绑定证据和参数的写操作做人工决策。"""
+
+    decision: ApprovalDecisionType
+    actor_id: str
+    command_id: str = Field(min_length=1, max_length=128)
+    expected_version: int = Field(ge=1)
+    edited_parameters: dict[str, Any] | None = None
+
+
+class CasePolicyRefreshRequest(BaseModel):
+    """模拟制度更新并触发 evidence/plan/approval 失效重建。"""
+
+    policy_version: str = Field(min_length=1, max_length=64)
+    actor_id: str
+    command_id: str = Field(min_length=1, max_length=128)
+    expected_version: int = Field(ge=1)
+
+
+class CaseEventPage(BaseModel):
+    """按 sequence 游标读取 Case 事件。"""
+
+    case_id: str
+    after_sequence: int = Field(ge=0)
+    items: list[dict[str, Any]] = Field(default_factory=list)
+    next_sequence: int = Field(ge=0)
+
+
+class A2ATaskRequest(BaseModel):
+    """向只读 Policy Research peer 委托任务。"""
+
+    context_id: str
+    text: str = Field(min_length=1, max_length=4000)
+    user_id: str
+
+
+CaseResponse = HRCase

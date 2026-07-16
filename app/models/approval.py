@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.agent_run import AgentRun
@@ -84,6 +84,37 @@ class ApprovalRequest(Base, IDMixin, TimestampMixin):
         nullable=True,
         default=None,
         comment="审批时间（UTC）"
+    )
+    revision: Mapped[int] = mapped_column(Integer, default=1, comment="审批修订号")
+    subject_hash: Mapped[str] = mapped_column(
+        String(64), default="", comment="审批对象哈希"
+    )
+    requested_by: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="审批发起人"
+    )
+    requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="审批发起时间"
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="审批失效时间"
+    )
+    policy_version: Mapped[str] = mapped_column(
+        String(128), default="", comment="绑定策略版本"
+    )
+    execution_manifest_hash: Mapped[str] = mapped_column(
+        String(128), default="", comment="绑定执行清单哈希"
+    )
+    supersedes_approval_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="被替代审批 ID"
+    )
+    revoked_by: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="撤销人"
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="撤销时间"
+    )
+    revoke_reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="撤销原因"
     )
 
     # 关系

@@ -7,13 +7,16 @@ from __future__ import annotations
 
 import logging
 
+from app.core.exceptions import NotFoundError
 from app.schemas.chunk import ChunkCreate, EvidenceBundle
+from app.schemas.retrieval import RetrievalResult
 from app.schemas.enums import Visibility
 from app.services.retrieval.embedding.base import Embedder
 from app.services.retrieval.evidence_builder import EvidenceBuilder
 from app.services.retrieval.fusion.rrf import RRFFuser
 from app.services.retrieval.reranker.base import Reranker
 from app.services.retrieval.store.base import ACLFilter, BM25Store, VectorStore
+from app.services.ingestion.document_versions import DocumentVersionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +39,8 @@ class HybridRetriever:
         embedder: Embedder,
         vector_store: VectorStore,
         bm25_store: BM25Store,
-        reranker: Reranker
+        reranker: Reranker,
+        document_version_registry: DocumentVersionRegistry | None = None,
     ) -> None:
         """
         初始化混合检索器。
@@ -51,6 +55,7 @@ class HybridRetriever:
         self._vector_store = vector_store
         self._bm25_store = bm25_store
         self._reranker = reranker
+        self._document_versions = document_version_registry
         self._rrf = RRFFuser()
         self._evidence_builder = EvidenceBuilder()
 
@@ -141,6 +146,10 @@ class HybridRetriever:
             top_k=top_k * 2
         )
 
+        if self._document_versions is not None:
+            dense_results = await self._active_version_only(dense_results)
+            sparse_results = await self._active_version_only(sparse_results)
+
         logger.info(
             "sparse_search_done",
             extra={"count": len(sparse_results)}
@@ -185,6 +194,24 @@ class HybridRetriever:
         )
 
         return evidence
+
+    async def _active_version_only(
+        self,
+        results: list[RetrievalResult],
+    ) -> list[RetrievalResult]:
+        """只保留 registry 中当前 active 的不可变文档版本。"""
+        active_ids: dict[str, str | None] = {}
+        filtered: list[RetrievalResult] = []
+        for result in results:
+            if result.document_id not in active_ids:
+                try:
+                    active = await self._document_versions.get_active(result.document_id)
+                    active_ids[result.document_id] = active.id
+                except NotFoundError:
+                    active_ids[result.document_id] = None
+            if active_ids[result.document_id] == result.document_version:
+                filtered.append(result)
+        return filtered
 
     async def delete_document(self, document_id: str) -> None:
         """
