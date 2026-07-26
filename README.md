@@ -132,6 +132,21 @@ $env:APP_MODE='full'
 - Event Store 保存不可变业务事实，Projection 服务查询/UI；两者不由 checkpoint 替代。
 - PostgreSQL saver 在 FastAPI lifespan 内建表、打开和关闭连接池，单元测试仍不依赖数据库。
 
+## 可复现的治理指标
+
+本地确定性 badcase 重放包含 20 条用例级样本和 11 条轨迹级样本；它证明治理断言与覆盖面，不代表线上生产流量统计。
+
+| 指标 | before | after |
+| --- | ---: | ---: |
+| 提示注入拦截率（已知中文改写缺口单列） | 0.0% | 100.0% |
+| 越权检索拦截率 | 0.0% | 100.0% |
+| 引用完整率 | 0.0% | 100.0% |
+| 审批拦截率 | 0.0% | 100.0% |
+| 重复副作用发生率（越低越好） | 100.0% | 0.0% |
+| 崩溃恢复成功率 | 0.0% | 100.0% |
+
+复现：`.venv/Scripts/python.exe scripts/run_landing_eval.py`。完整口径见 `docs/evidence/landing-eval-report.md`，已知缺口 `bc_inj_005` 不计入 after 头条指标。
+
 ## 验证
 
 ```powershell
