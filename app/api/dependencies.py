@@ -306,13 +306,18 @@ class ServiceContainer:
 
     def _init_graph_runner(self) -> None:
         """构建 LangGraph Runner，供可选真实编排入口使用。"""
+        from app.services.graph.checkpointer import create_checkpointer_manager
         from app.services.graph.graph import create_agent_graph
         from app.services.graph.runner import GraphRunner
 
+        # checkpointer 后端由 settings 决定；postgres 后端的连接池
+        # 生命周期挂在 FastAPI lifespan 上（见 app/main.py）。
+        self.graph_checkpointer = create_checkpointer_manager(self.settings)
         compiled_graph = create_agent_graph(
             run_manager=self.run_manager,
             hybrid_retriever=self.hybrid_retriever,
             answer_service=self.answer_service,
+            checkpointer=self.graph_checkpointer.checkpointer,
         )
         self.graph_runner = GraphRunner(
             graph=compiled_graph,

@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     )
     redis_url: str = Field(default="redis://localhost:6379/0")
 
+    # LangGraph checkpointer：memory（默认，进程内）或 postgres（持久化，
+    # 跨天审批流程在进程重启后仍可 resume）。postgres 连接串为空时回退 postgres_url。
+    graph_checkpointer_backend: Literal["memory", "postgres"] = Field(default="memory")
+    graph_checkpointer_postgres_url: str = Field(default="")
+
     milvus_host: str = Field(default="localhost")
     milvus_port: int = Field(default=19530)
 

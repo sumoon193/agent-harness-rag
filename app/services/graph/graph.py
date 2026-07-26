@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 
 from app.services.agent.run_manager import AgentRunManager
@@ -38,6 +39,7 @@ def create_agent_graph(
     run_manager: AgentRunManager,
     hybrid_retriever: HybridRetriever,
     answer_service: object | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> StateGraph:
     """
     创建 Agent Graph。
@@ -45,6 +47,10 @@ def create_agent_graph(
     Args:
         run_manager: Agent Run Manager
         hybrid_retriever: 混合检索器
+        answer_service: 答案生成服务（可选）
+        checkpointer: 编译 graph 用的 checkpointer；未注入时回退进程内
+            MemorySaver（测试/fallback 场景），生产持久化后端由
+            app.services.graph.checkpointer 工厂按 settings 构建并注入
 
     Returns:
         编译后的 StateGraph
@@ -81,9 +87,13 @@ def create_agent_graph(
     graph.add_edge("fact_check", "finalize")
     graph.add_edge("finalize", END)
 
-    # V1 运行时仍使用进程内 checkpoint；Postgres saver 需要异步生命周期托管。
-    from langgraph.checkpoint.memory import MemorySaver
-    checkpointer = MemorySaver()
+    # checkpointer 由调用方（ServiceContainer）根据 settings 注入：
+    # postgres 后端使用 AsyncPostgresSaver 持久化 checkpoint，进程重启后
+    # waiting_approval 的长流程仍可 resume；未注入时回退进程内 MemorySaver。
+    if checkpointer is None:
+        from langgraph.checkpoint.memory import MemorySaver
+
+        checkpointer = MemorySaver()
 
     compiled = graph.compile(checkpointer=checkpointer)
 

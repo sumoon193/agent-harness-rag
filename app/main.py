@@ -43,12 +43,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await init_db()
         logger.info("full_mode_initialized")
 
-    yield
+    # postgres checkpointer 的连接池生命周期挂在 lifespan 上：
+    # startup 打开连接池并建 checkpoint 表，shutdown 关闭连接池，
+    # 保证 waiting_approval 的跨天流程状态在进程重启后仍可 resume。
+    checkpointer_manager = None
+    if settings.graph_checkpointer_backend == "postgres":
+        from app.api.dependencies import get_container
 
-    if settings.app_mode == "full":
-        from app.db.session import close_db
-        await close_db()
-        logger.info("full_mode_shutdown")
+        checkpointer_manager = get_container().graph_checkpointer
+        await checkpointer_manager.setup()
+        logger.info("graph_checkpointer_initialized")
+
+    try:
+        yield
+    finally:
+        if checkpointer_manager is not None:
+            await checkpointer_manager.teardown()
+            logger.info("graph_checkpointer_shutdown")
+
+        if settings.app_mode == "full":
+            from app.db.session import close_db
+
+            await close_db()
+            logger.info("full_mode_shutdown")
 
 
 def create_app() -> FastAPI:
