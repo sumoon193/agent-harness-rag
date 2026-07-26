@@ -125,6 +125,13 @@ $env:APP_MODE='full'
 
 配置项见 `.env.example` 和 `docker-compose.yml`。
 
+## Checkpoint、Event Store 与 Projection
+
+- LangGraph checkpoint 只保存执行位置；默认 `GRAPH_CHECKPOINTER_BACKEND=memory`。
+- 跨进程恢复设置 `GRAPH_CHECKPOINTER_BACKEND=postgres`，连接串优先读取 `GRAPH_CHECKPOINTER_POSTGRES_URL`，为空时复用 `POSTGRES_URL`。
+- Event Store 保存不可变业务事实，Projection 服务查询/UI；两者不由 checkpoint 替代。
+- PostgreSQL saver 在 FastAPI lifespan 内建表、打开和关闭连接池，单元测试仍不依赖数据库。
+
 ## 验证
 
 ```powershell
