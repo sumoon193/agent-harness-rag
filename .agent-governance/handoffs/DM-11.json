@@ -1,0 +1,73 @@
+{
+  "task_id": "DM-11",
+  "project_id": "devmate",
+  "branch": "codex/devmate/dm-11-module",
+  "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
+  "commit_sha": "8b5342671e1e8bcac1d2ded59ed39c6aa8f6ad8c",
+  "status": "pushed",
+  "changed_files": [
+    "app/devmate/git/__init__.py",
+    "app/devmate/git/handler.py",
+    "app/devmate/git/ledger.py",
+    "app/devmate/git/types.py",
+    "tests/devmate/git/test_dm_11.py",
+    ".agent-governance/handoffs/DM-11.json"
+  ],
+  "created_files": [
+    "app/devmate/git/__init__.py",
+    "app/devmate/git/handler.py",
+    "app/devmate/git/ledger.py",
+    "app/devmate/git/types.py",
+    "tests/devmate/git/test_dm_11.py"
+  ],
+  "deleted_files": [],
+  "scope_deviations": [
+    "None: all changes are inside the DM-11 whitelist (app/devmate/git/**, tests/devmate/git/**). 5 files / 243 insertions / 0 deletions, within max_changed_files=8 and max_diff_lines=800."
+  ],
+  "red": {
+    "command": "python -m pytest tests/devmate/git/test_dm_11.py -q -p no:cacheprovider",
+    "exit_code": 2,
+    "expected_exit_code": 1,
+    "result": "observed",
+    "detail": "ModuleNotFoundError: No module named 'app.devmate.git' — target entry not implemented"
+  },
+  "green": {
+    "command": "python -m pytest tests/devmate/git/test_dm_11.py -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed"
+  },
+  "regression": {
+    "command": "python -m pytest tests/devmate -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed on this branch (only DM-11 tests present; previous modules live on their own branches until integration)"
+  },
+  "inspection": {
+    "task_packet_gate": "passed",
+    "branch_policy_gate": "passed",
+    "scope_gate": "passed",
+    "test_integrity_gate": "passed",
+    "secrets_gate": "passed",
+    "focused_tests_gate": "passed",
+    "regression_gate": "passed",
+    "full_suite": "python -m pytest tests -q -p no:cacheprovider -> 314 passed, 11 deselected, 1 deprecation warning"
+  },
+  "not_run": [
+    "remote branch protection verification (manifest remote_protection: unverified)",
+    "real GitHub API calls: network disabled; the branch/PR side effects are modeled as an in-memory ledger, not real remote objects"
+  ],
+  "unverified": [
+    "remote branch protection",
+    "real GitHub side-effect creation against a live repository"
+  ],
+  "known_risks": [
+    "DM-11 branch is based on integration commit 187259e and does NOT include DM-01..DM-10 (per user direction to implement without merging). app/devmate/git/** is self-contained.",
+    "RED exit code was 2 (collection error: module missing) vs expected_exit_code 1 in the task packet; failure reason matches expected_red_reason.",
+    "Side-effect idempotency: a duplicate release_id returns the prior effects (branch + pull_request) without creating new ledger entries. timeout=True marks both effects UNKNOWN and sets reconciliation_required=True; RuntimeEvent.reconcile() resolves UNKNOWN effects to reconciled. Real remote branch/PR creation is explicitly unverified (network disabled) and must not be claimed as exercised."
+  ],
+  "follow_up": [
+    "primary-integrator: merge codex/devmate/dm-01-module through codex/devmate/dm-11-module into codex/enterprise-agent-runtime-v2-pr in dependency order, then activate DM-12.",
+    "No learning/interview/resume/summary documents generated, per governance."
+  ]
+}
