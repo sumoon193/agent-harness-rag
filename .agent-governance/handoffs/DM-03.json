@@ -4,8 +4,7 @@
   "branch": "codex/devmate/dm-03-module",
   "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
   "commit_sha": "e8a628aa5c0e2af4364cfbae92ee2c0fae91f034",
-  "status": "pending-push",
-  "push_blocked": "github.com unreachable from this machine (curl to https://github.com times out; no proxy configured). Commits are local only; origin/codex/devmate/dm-03-module does not exist until a normal push succeeds. Retry: git push from D:/Code/pythonproject when network recovers.",
+  "status": "pushed",
   "changed_files": [
     "app/devmate/runtime/__init__.py",
     "app/devmate/runtime/checkpoint.py",
