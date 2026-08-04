@@ -1,0 +1,78 @@
+{
+  "task_id": "DM-13",
+  "project_id": "devmate",
+  "branch": "codex/devmate/dm-13-module",
+  "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
+  "commit_sha": "a2052475a1f3771ecba77a3604d1845ab37333af",
+  "status": "pushed",
+  "changed_files": [
+    "app/devmate/eval/__init__.py",
+    "app/devmate/eval/command.py",
+    "app/devmate/eval/evaluator.py",
+    "app/devmate/eval/report.py",
+    "app/devmate/observability/__init__.py",
+    "app/devmate/observability/metrics.py",
+    "tests/devmate/eval/test_dm_13.py",
+    ".agent-governance/handoffs/DM-13.json"
+  ],
+  "created_files": [
+    "app/devmate/eval/__init__.py",
+    "app/devmate/eval/command.py",
+    "app/devmate/eval/evaluator.py",
+    "app/devmate/eval/report.py",
+    "app/devmate/observability/__init__.py",
+    "app/devmate/observability/metrics.py",
+    "tests/devmate/eval/test_dm_13.py"
+  ],
+  "deleted_files": [],
+  "scope_deviations": [
+    "None: all changes are inside the DM-13 whitelist (app/devmate/eval/**, app/devmate/observability/**, tests/devmate/eval/**). 7 files / 280 insertions / 0 deletions, within max_changed_files=12 and max_diff_lines=800."
+  ],
+  "red": {
+    "command": "python -m pytest tests/devmate/eval/test_dm_13.py -q -p no:cacheprovider",
+    "exit_code": 2,
+    "expected_exit_code": 1,
+    "result": "observed",
+    "detail": "ModuleNotFoundError: No module named 'app.devmate.eval' — target entry not implemented"
+  },
+  "green": {
+    "command": "python -m pytest tests/devmate/eval/test_dm_13.py -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed"
+  },
+  "regression": {
+    "command": "python -m pytest tests/devmate -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed on this branch (only DM-13 tests present; previous modules live on their own branches until integration)"
+  },
+  "inspection": {
+    "task_packet_gate": "passed",
+    "branch_policy_gate": "passed",
+    "scope_gate": "passed",
+    "test_integrity_gate": "passed",
+    "secrets_gate": "passed",
+    "focused_tests_gate": "passed",
+    "regression_gate": "passed",
+    "full_suite": "python -m pytest tests -q -p no:cacheprovider -> 314 passed, 11 deselected, 1 deprecation warning"
+  },
+  "not_run": [
+    "remote branch protection verification (manifest remote_protection: unverified)",
+    "real OTel/OTLP exporter and external observability backend: network disabled; the metrics collector is in-memory (OTel-shaped API, no exporter)"
+  ],
+  "unverified": [
+    "remote branch protection",
+    "real OpenTelemetry export / distributed tracing against a live backend"
+  ],
+  "known_risks": [
+    "DM-13 branch is based on integration commit 187259e and does NOT include DM-01..DM-12 (per user direction to implement without merging). app/devmate/eval/** and app/devmate/observability/** are self-contained.",
+    "RED exit code was 2 (collection error: module missing) vs expected_exit_code 1 in the task packet; failure reason matches expected_red_reason.",
+    "Frozen eval contract: EvalReport is a frozen dataclass covering the four dimensions diagnosis/sandbox/approval/side_effect with count, avg_latency_ms and total_cost computed from fixed MetricSample fixtures; a deterministic signature makes identical inputs reproduce identical reports (re-auditable). MetricsRegistry is an in-memory append-only collector with record/query/count/total.",
+    "One test-helper fix during GREEN: `metrics or _samples()` treated the empty tuple () as falsy and substituted the default samples, so the empty-metrics test observed the default report; changed to `if metrics is not None`."
+  ],
+  "follow_up": [
+    "primary-integrator: merge codex/devmate/dm-01-module through codex/devmate/dm-13-module into codex/enterprise-agent-runtime-v2-pr in dependency order, then activate DM-14.",
+    "No learning/interview/resume/summary documents generated, per governance."
+  ]
+}
