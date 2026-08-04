@@ -1,0 +1,80 @@
+{
+  "task_id": "DM-03",
+  "project_id": "devmate",
+  "branch": "codex/devmate/dm-03-module",
+  "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
+  "commit_sha": "e8a628aa5c0e2af4364cfbae92ee2c0fae91f034",
+  "status": "pending-push",
+  "push_blocked": "github.com unreachable from this machine (curl to https://github.com times out; no proxy configured). Commits are local only; origin/codex/devmate/dm-03-module does not exist until a normal push succeeds. Retry: git push from D:/Code/pythonproject when network recovers.",
+  "changed_files": [
+    "app/devmate/runtime/__init__.py",
+    "app/devmate/runtime/checkpoint.py",
+    "app/devmate/runtime/event_store.py",
+    "app/devmate/runtime/models.py",
+    "app/devmate/runtime/outbox.py",
+    "app/devmate/runtime/projection.py",
+    "migrations/devmate/0001_devmate_case.sql",
+    "tests/devmate/runtime/test_dm_03.py",
+    ".agent-governance/handoffs/DM-03.json"
+  ],
+  "created_files": [
+    "app/devmate/runtime/__init__.py",
+    "app/devmate/runtime/checkpoint.py",
+    "app/devmate/runtime/event_store.py",
+    "app/devmate/runtime/models.py",
+    "app/devmate/runtime/outbox.py",
+    "app/devmate/runtime/projection.py",
+    "migrations/devmate/0001_devmate_case.sql",
+    "tests/devmate/runtime/test_dm_03.py"
+  ],
+  "deleted_files": [],
+  "scope_deviations": [
+    "None: all changes are inside the DM-03 whitelist (app/devmate/runtime/**, migrations/devmate/**, tests/devmate/runtime/**). 8 files / 520 insertions / 0 deletions, within max_changed_files=12 and max_diff_lines=800."
+  ],
+  "red": {
+    "command": "python -m pytest tests/devmate/runtime/test_dm_03.py -q -p no:cacheprovider",
+    "exit_code": 2,
+    "expected_exit_code": 1,
+    "result": "observed",
+    "detail": "ModuleNotFoundError: No module named 'app.devmate.runtime' — target entry not implemented"
+  },
+  "green": {
+    "command": "python -m pytest tests/devmate/runtime/test_dm_03.py -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "9 passed"
+  },
+  "regression": {
+    "command": "python -m pytest tests/devmate -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "9 passed on this branch (DM-02 contract tests live on codex/devmate/dm-02-module and are not present here; both will be collected at integration after merge)"
+  },
+  "inspection": {
+    "task_packet_gate": "passed",
+    "branch_policy_gate": "passed",
+    "scope_gate": "passed",
+    "test_integrity_gate": "passed",
+    "secrets_gate": "passed",
+    "focused_tests_gate": "passed",
+    "regression_gate": "passed",
+    "full_suite": "python -m pytest tests -q -p no:cacheprovider -> 316 passed, 11 deselected, 1 deprecation warning"
+  },
+  "not_run": [
+    "remote branch protection verification (manifest remote_protection: unverified)",
+    "external service / network-dependent tests (DM-03 capabilities: network disabled, no external services)"
+  ],
+  "unverified": [
+    "remote branch protection"
+  ],
+  "known_risks": [
+    "DM-03 branch is based on integration commit 187259e and does NOT include DM-01 or DM-02 (per user direction to implement without merging). app/devmate/runtime/** is self-contained and intentionally does NOT import app.devmate.contracts (DM-02), because those files only exist on codex/devmate/dm-02-module. No file overlap between DM-02 scope (app/devmate/contracts/**, docs/devmate/contracts/**, tests/devmate/contracts/**) and DM-03 scope, so merge is expected to be clean; integrator must reconcile the DM-02 port contracts with DM-03 runtime usage at integration.",
+    "RED exit code was 2 (collection error: module missing) vs expected_exit_code 1 in the task packet; failure reason matches expected_red_reason.",
+    "database_changes=true: migrations/devmate/0001_devmate_case.sql declares devmate_case with primary key, version, checkpoint_id (idempotency key), created_at/updated_at and audit_source, using IF NOT EXISTS for forward/backward compatibility. The runtime uses an in-memory EventStore/Outbox (pure Python, deterministic) per the 'pure Python / deterministic fake first' principle; no SQL is executed in unit tests.",
+    "Observable result coverage: event and outbox commit atomically (version conflict aborts both, idempotent by checkpoint_id), projection is rebuildable from the event stream, case record carries audit fields, migration DDL is asserted by test."
+  ],
+  "follow_up": [
+    "primary-integrator: merge codex/devmate/dm-01-module, codex/devmate/dm-02-module and codex/devmate/dm-03-module into codex/enterprise-agent-runtime-v2-pr in dependency order (DM-01 -> DM-02 -> DM-03), then activate DM-04.",
+    "No learning/interview/resume/summary documents generated, per governance."
+  ]
+}
