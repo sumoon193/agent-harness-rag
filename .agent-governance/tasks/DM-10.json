@@ -1,6 +1,6 @@
 {
-  "base_ref": "main",
-  "base_sha": "8e1c44346da9523e499750e71db684b82e38726f",
+  "base_ref": "codex/enterprise-agent-runtime-v2-pr",
+  "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
   "behavior": {
     "failure_modes": [
       "输入非法时稳定失败",
