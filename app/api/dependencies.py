@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.schemas.enums import ToolRiskLevel
 from app.schemas.tool import ToolDefinition
 from app.services.agent.approval_manager import ApprovalManager
+from app.services.agent.approval_policy import build_approval_policy
 from app.services.agent.artifact_timeline import ArtifactTimelineBuilder
 from app.services.agent.run_manager import AgentRunManager
 from app.services.agent.step_logger import StepLogger
@@ -184,6 +185,10 @@ class ServiceContainer:
         self.step_logger = StepLogger()
         self.timeline_builder = ArtifactTimelineBuilder()
         self.approval_manager = ApprovalManager(step_logger=self.step_logger)
+        self.approval_policy = build_approval_policy(
+            settings.approval_mode,
+            allow_admin=settings.approval_auto_allow_admin,
+        )
         self.tool_registry = _build_tool_registry()
         self.acl_validator = ACLValidator()
         self._init_runtime_services()
@@ -223,6 +228,7 @@ class ServiceContainer:
             tool_executor=self.tool_executor,
             approval_manager=self.approval_manager,
             step_logger=self.step_logger,
+            approval_policy=self.approval_policy,
         )
         self.answer_service = GroundedAnswerService(
             answer_generator=self.answer_generator,
@@ -295,6 +301,7 @@ class ServiceContainer:
             approval_manager=self.approval_manager,
             step_logger=self.step_logger,
             session_factory=session_factory,
+            approval_policy=self.approval_policy,
         )
 
         self.answer_service = GroundedAnswerService(answer_generator=self.answer_generator)

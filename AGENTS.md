@@ -180,3 +180,9 @@ V1 已完成；仍作为 V2 非目标保留：
 - `cd frontend && npm run build`：TypeScript 阶段通过，Vite 在当前 Windows 沙箱加载配置时因 `spawn EPERM` 被阻塞；这不是源码编译错误。
 - Playwright 浏览器进程受同一沙箱策略限制，本轮未复验；2026-06-01 的 V1 fallback 基线仍为 `5 passed`。
 - full-mode integration 仍需 PostgreSQL、Redis、Milvus、Elasticsearch、MinIO，不属于无外部依赖的质量门禁。
+
+<!-- BEGIN CENTRAL AGENT GOVERNANCE -->
+## 中央多模型治理入口
+
+在保留本文件全部既有规则的前提下，所有实现模型还必须读取 `.agent-governance/AGENT-ENTRY.md`、manifest、项目 profile、模块契约和当前任务包。冲突时采用更严格约束。禁止 merge、rebase 他人分支、force-push 和自动合并；最终集成由 `primary-integrator` 决定。
+<!-- END CENTRAL AGENT GOVERNANCE -->

@@ -1,7 +1,7 @@
 # DevMate 领域耦合扫描
 
 > 归属：W1-C1 审计卡输出，供 go/no-go 决策使用；只报告耦合，不自动改写代码。
-> 基线 commit：`12cd6805c4864a71a6fbc2afd7e281ca1262f1e2`
+> 基线 commit：`8e1c44346da9523e499750e71db684b82e38726f`
 > 工作树：dirty
 > 命令：`D:\Code\pythonproject\.venv\Scripts\python.exe scripts/scan_domain_coupling.py --repo . --output docs/audit/domain-coupling.md`
 

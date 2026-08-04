@@ -21,6 +21,11 @@ from app.schemas.enums import ApprovalDecisionType, ApprovalStatus, RunStatus, T
 from app.schemas.tool import ToolCall
 from app.schemas.user import UserContext
 from app.services.agent.approval_manager import ApprovalManager
+from app.services.agent.approval_policy import (
+    POLICY_ENGINE_APPROVER,
+    ApprovalPolicy,
+    NoopApprovalPolicy,
+)
 from app.services.agent.state_machine import AgentStateMachine
 from app.services.agent.step_logger import StepLogger
 from app.services.agent.tool_executor import ToolExecutor
@@ -42,11 +47,13 @@ class AgentRunManager:
         approval_manager: ApprovalManager,
         step_logger: StepLogger,
         session_factory: async_sessionmaker[AsyncSession] | None = None,
+        approval_policy: ApprovalPolicy | None = None,
     ) -> None:
         self._tool_executor = tool_executor
         self._approval_manager = approval_manager
         self._step_logger = step_logger
         self._state_machine = AgentStateMachine()
+        self._approval_policy = approval_policy or NoopApprovalPolicy()
         self._runs: dict[str, AgentRunResponse] = {}  # run_id -> run
         self._session_factory = session_factory
 
@@ -366,6 +373,93 @@ class AgentRunManager:
             )
 
         return self._approval_manager.reject(approval_id, user_context.user_id)
+
+    def maybe_auto_approve(
+        self,
+        run_id: str,
+        approval_id: str,
+        user_context: UserContext,
+    ) -> ApprovalDecision | None:
+        """
+        策略命中时自动审批。
+
+        命中规则时立即以 policy_engine 身份批准并记录审计步骤，
+        返回合成决策；未命中返回 None，走人工审批。
+
+        Args:
+            run_id: Run ID
+            approval_id: 审批请求 ID
+            user_context: 用户上下文
+
+        Returns:
+            自动决策，或 None（转人工）
+        """
+        request = self._approval_manager.get_request(approval_id)
+        if request.status != ApprovalStatus.PENDING:
+            return None
+
+        decision = self._approval_policy.evaluate(
+            tool_name=request.tool_name,
+            parameters=request.parameters,
+            risk_level=request.risk_level,
+            user_context=user_context,
+        )
+        if decision is None:
+            return None
+
+        self._approval_manager.approve(approval_id, POLICY_ENGINE_APPROVER)
+        self._step_logger.log_step(
+            run_id=run_id,
+            node_name="approval_auto_approved",
+            input_data={
+                "approval_id": approval_id,
+                "tool_name": request.tool_name,
+                "risk_level": request.risk_level.value,
+            },
+            output_data={
+                "decision": decision.value,
+                "decided_by": POLICY_ENGINE_APPROVER,
+            },
+        )
+
+        logger.info(
+            "approval_auto_approved",
+            extra={
+                "run_id": run_id,
+                "approval_id": approval_id,
+                "tool_name": request.tool_name,
+            },
+        )
+
+        return ApprovalDecision(decision=decision)
+
+    async def auto_approve_and_execute(
+        self,
+        run_id: str,
+        user_context: UserContext,
+    ) -> ToolCall | None:
+        """
+        demo 链路：策略命中时自动审批并执行写入工具。
+
+        用于确定性 fallback demo 的无人值守场景；未命中返回 None。
+
+        Args:
+            run_id: Run ID
+            user_context: 用户上下文
+
+        Returns:
+            已执行的 ToolCall；策略未命中时为 None
+        """
+        pending = self._approval_manager.get_pending_requests(run_id)
+        if not pending:
+            return None
+
+        approval = pending[0]
+        decision = self.maybe_auto_approve(run_id, approval.id, user_context)
+        if decision is None:
+            return None
+
+        return await self.execute_approved_tool(run_id, approval.id, user_context)
 
     async def execute_approved_tool(
         self,

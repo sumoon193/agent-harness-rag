@@ -169,6 +169,33 @@ async def _run_fallback_demo(
         user_context=user_context,
     )
 
+    # 策略化自动审批：命中规则时直接执行并完成，全程无人值守。
+    auto_tool_call = await run_manager.auto_approve_and_execute(run_id, user_context)
+    if auto_tool_call is not None:
+        await run_manager.complete_run(
+            run_id=run_id,
+            result={
+                "answer": (
+                    "新员工入职到转正通常包括材料提交、合同签署、账号开通、"
+                    "入职培训、试用期目标确认、转正评估和 HR 归档。"
+                    "系统已按审批策略自动批准并创建模拟 HR 工单。"
+                ),
+                "citations": [
+                    citation.model_dump(mode="json")
+                    for citation in evidence.evidence_list
+                ],
+                "confidence": evidence.query_coverage_score,
+                "plan": {
+                    "id": plan.id,
+                    "steps": plan.steps,
+                    "requires_approval": ["create_mock_hr_ticket"],
+                },
+                "tool_result": auto_tool_call.result,
+                "approval_required": False,
+            },
+        )
+        return await run_manager.get_run(run_id)
+
     run = await run_manager.get_run(run_id)
     run.result = {
         "answer": (
