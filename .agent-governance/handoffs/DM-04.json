@@ -1,0 +1,80 @@
+{
+  "task_id": "DM-04",
+  "project_id": "devmate",
+  "branch": "codex/devmate/dm-04-module",
+  "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
+  "commit_sha": "df9a0e3406bd305559c66bf3e24d07860bb24d86",
+  "status": "pushed",
+  "changed_files": [
+    "app/devmate/cases/__init__.py",
+    "app/devmate/cases/command.py",
+    "app/devmate/cases/state.py",
+    "app/devmate/cases/store.py",
+    "app/api/devmate/__init__.py",
+    "app/api/devmate/router.py",
+    "tests/devmate/cases/test_dm_04.py",
+    "tests/api/devmate/test_dm_04_api.py",
+    ".agent-governance/handoffs/DM-04.json"
+  ],
+  "created_files": [
+    "app/devmate/cases/__init__.py",
+    "app/devmate/cases/command.py",
+    "app/devmate/cases/state.py",
+    "app/devmate/cases/store.py",
+    "app/api/devmate/__init__.py",
+    "app/api/devmate/router.py",
+    "tests/devmate/cases/test_dm_04.py",
+    "tests/api/devmate/test_dm_04_api.py"
+  ],
+  "deleted_files": [],
+  "scope_deviations": [
+    "None: all changes are inside the DM-04 whitelist (app/devmate/cases/**, app/api/devmate/**, tests/devmate/cases/**, tests/api/devmate/**). 8 files / 723 insertions / 0 deletions, within max_changed_files=16 and max_diff_lines=800."
+  ],
+  "red": {
+    "command": "python -m pytest tests/devmate/cases/test_dm_04.py -q -p no:cacheprovider",
+    "exit_code": 2,
+    "expected_exit_code": 1,
+    "result": "observed",
+    "detail": "ModuleNotFoundError: No module named 'app.devmate.cases' / 'app.api.devmate' — target entry not implemented"
+  },
+  "green": {
+    "command": "python -m pytest tests/devmate/cases/test_dm_04.py tests/api/devmate/test_dm_04_api.py -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "14 passed (7 domain + 7 HTTP API)"
+  },
+  "regression": {
+    "command": "python -m pytest tests/devmate -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed on this branch (tests/devmate/cases only; API tests under tests/api/devmate are covered by the full suite)"
+  },
+  "inspection": {
+    "task_packet_gate": "passed",
+    "branch_policy_gate": "passed",
+    "scope_gate": "passed",
+    "test_integrity_gate": "passed",
+    "secrets_gate": "passed",
+    "focused_tests_gate": "passed",
+    "regression_gate": "passed",
+    "full_suite": "python -m pytest tests -q -p no:cacheprovider -> 321 passed, 11 deselected, 1 deprecation warning"
+  },
+  "not_run": [
+    "remote branch protection verification (manifest remote_protection: unverified)",
+    "external service / network-dependent tests (DM-04 capabilities: network disabled, no external services)"
+  ],
+  "unverified": [
+    "remote branch protection"
+  ],
+  "known_risks": [
+    "DM-04 branch is based on integration commit 187259e and does NOT include DM-01/02/03 (per user direction to implement without merging). app/devmate/cases/** is self-contained (own state machine + in-memory store + CaseCommand); it does NOT import app.devmate.contracts or app.devmate.runtime. The CaseStatus machine (created -> running -> waiting_approval -> completed -> failed) is re-declared in app/devmate/cases/state.py and duplicates DM-02's contracts/state.py; integrator must reconcile at integration.",
+    "public_api_changes=true: new router at app/api/devmate/ exposes POST /devmate/cases, POST /devmate/cases/{case_id}/commands and GET /devmate/cases/{case_id}/timeline with typed request/response, stable error codes (401 unauthorized / 404 case_not_found / 409 illegal_transition, case_already_exists), X-Request-ID correlation echo and actor permission check. Existing app/api/cases.py (V1, outside whitelist) was not touched.",
+    "RED exit code was 2 (collection error: module missing) vs expected_exit_code 1 in the task packet; failure reason matches expected_red_reason.",
+    "Regression command tests/devmate -q only collects tests/devmate/cases; the API tests live under tests/api/devmate (whitelisted) and are exercised by the full suite. Integrator should include both when running the post-merge regression.",
+    "Controller contains no state machine logic: transitions are validated by CaseCommand against LEGAL_TRANSITIONS; the API only adapts HTTP to the typed command. One test fix was required during GREEN: actor_id made optional in request models so a missing actor returns 401 (pydantic 422 would otherwise bypass the permission check)."
+  ],
+  "follow_up": [
+    "primary-integrator: merge codex/devmate/dm-01-module through codex/devmate/dm-04-module into codex/enterprise-agent-runtime-v2-pr in dependency order, then activate DM-05.",
+    "No learning/interview/resume/summary documents generated, per governance."
+  ]
+}
