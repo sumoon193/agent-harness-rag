@@ -1,0 +1,73 @@
+{
+  "task_id": "DM-05",
+  "project_id": "devmate",
+  "branch": "codex/devmate/dm-05-module",
+  "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
+  "commit_sha": "e2062ce77f4598c6b83a6c6cd4447c3ee0629fa9",
+  "status": "pushed",
+  "changed_files": [
+    "app/devmate/ingestion/__init__.py",
+    "app/devmate/ingestion/handler.py",
+    "app/devmate/ingestion/models.py",
+    "app/devmate/ingestion/store.py",
+    "tests/devmate/ingestion/test_dm_05.py",
+    ".agent-governance/handoffs/DM-05.json"
+  ],
+  "created_files": [
+    "app/devmate/ingestion/__init__.py",
+    "app/devmate/ingestion/handler.py",
+    "app/devmate/ingestion/models.py",
+    "app/devmate/ingestion/store.py",
+    "tests/devmate/ingestion/test_dm_05.py"
+  ],
+  "deleted_files": [],
+  "scope_deviations": [
+    "None: all changes are inside the DM-05 whitelist (app/devmate/ingestion/**, tests/devmate/ingestion/**). 5 files / 283 insertions / 0 deletions, within max_changed_files=8 and max_diff_lines=800."
+  ],
+  "red": {
+    "command": "python -m pytest tests/devmate/ingestion/test_dm_05.py -q -p no:cacheprovider",
+    "exit_code": 2,
+    "expected_exit_code": 1,
+    "result": "observed",
+    "detail": "ModuleNotFoundError: No module named 'app.devmate.ingestion' — target entry not implemented"
+  },
+  "green": {
+    "command": "python -m pytest tests/devmate/ingestion/test_dm_05.py -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed"
+  },
+  "regression": {
+    "command": "python -m pytest tests/devmate -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed on this branch (only DM-05 tests present; previous modules live on their own branches until integration)"
+  },
+  "inspection": {
+    "task_packet_gate": "passed",
+    "branch_policy_gate": "passed",
+    "scope_gate": "passed",
+    "test_integrity_gate": "passed",
+    "secrets_gate": "passed",
+    "focused_tests_gate": "passed",
+    "regression_gate": "passed",
+    "full_suite": "python -m pytest tests -q -p no:cacheprovider -> 314 passed, 11 deselected, 1 deprecation warning"
+  },
+  "not_run": [
+    "remote branch protection verification (manifest remote_protection: unverified)",
+    "external service / network-dependent tests (DM-05 capabilities: network disabled, no external services)"
+  ],
+  "unverified": [
+    "remote branch protection"
+  ],
+  "known_risks": [
+    "DM-05 branch is based on integration commit 187259e and does NOT include DM-01..DM-04 (per user direction to implement without merging). app/devmate/ingestion/** is self-contained and does not import previous modules' code.",
+    "RED exit code was 2 (collection error: module missing) vs expected_exit_code 1 in the task packet; failure reason matches expected_red_reason.",
+    "Idempotency semantics: a duplicate webhook_id returns the prior immutable EvidenceBundle with duplicate=True; evidence_id and payload_hash (deterministic SHA-256 over sorted-keys JSON) are unchanged. The two idempotency tests were initially written to assert full DM05Result equality, which cannot hold because the duplicate flag differs on retry; assertions were corrected to evidence equality + duplicate flag.",
+    "commit/CI evidence are optional per webhook (validated when provided) and fixed/immutable once ingested (frozen dataclasses, append-only store)."
+  ],
+  "follow_up": [
+    "primary-integrator: merge codex/devmate/dm-01-module through codex/devmate/dm-05-module into codex/enterprise-agent-runtime-v2-pr in dependency order, then activate DM-06.",
+    "No learning/interview/resume/summary documents generated, per governance."
+  ]
+}
