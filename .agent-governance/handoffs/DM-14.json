@@ -1,0 +1,74 @@
+{
+  "task_id": "DM-14",
+  "project_id": "devmate",
+  "branch": "codex/devmate/dm-14-module",
+  "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
+  "commit_sha": "379a0a8144da8bac9e5cb5ab2a8fff42cfb89e11",
+  "status": "pushed",
+  "changed_files": [
+    "scripts/devmate/__init__.py",
+    "scripts/devmate/release_drill.py",
+    "scripts/devmate/release_kit.py",
+    "docs/devmate/release/release-and-rollback.md",
+    "tests/devmate/release/test_dm_14.py",
+    ".agent-governance/handoffs/DM-14.json"
+  ],
+  "created_files": [
+    "scripts/devmate/__init__.py",
+    "scripts/devmate/release_drill.py",
+    "scripts/devmate/release_kit.py",
+    "docs/devmate/release/release-and-rollback.md",
+    "tests/devmate/release/test_dm_14.py"
+  ],
+  "deleted_files": [],
+  "scope_deviations": [
+    "None: all changes are inside the DM-14 whitelist (scripts/devmate/**, tests/devmate/release/**, docs/devmate/release/**). 5 files / 228 insertions / 0 deletions, within max_changed_files=12 and max_diff_lines=800."
+  ],
+  "red": {
+    "command": "python -m pytest tests/devmate/release/test_dm_14.py -q -p no:cacheprovider",
+    "exit_code": 2,
+    "expected_exit_code": 1,
+    "result": "observed",
+    "detail": "ModuleNotFoundError: No module named 'scripts.devmate.release_kit' — target entry not implemented"
+  },
+  "green": {
+    "command": "python -m pytest tests/devmate/release/test_dm_14.py -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed"
+  },
+  "regression": {
+    "command": "python -m pytest tests/devmate -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed on this branch (only DM-14 tests present; previous modules live on their own branches until integration)"
+  },
+  "inspection": {
+    "task_packet_gate": "passed",
+    "branch_policy_gate": "passed",
+    "scope_gate": "passed",
+    "test_integrity_gate": "passed",
+    "secrets_gate": "passed",
+    "focused_tests_gate": "passed",
+    "regression_gate": "passed",
+    "full_suite": "python -m pytest tests -q -p no:cacheprovider -> 314 passed, 11 deselected, 1 deprecation warning"
+  },
+  "not_run": [
+    "remote branch protection verification (manifest remote_protection: unverified)",
+    "real release execution against a live environment (network disabled; drill is a deterministic in-memory simulation)"
+  ],
+  "unverified": [
+    "remote branch protection",
+    "real deployment / rollback against a live environment"
+  ],
+  "known_risks": [
+    "DM-14 branch is based on integration commit 187259e and does NOT include DM-01..DM-13 (per user direction to implement without merging). All DM-14 code lives under scripts/devmate/** and docs/devmate/release/** per the task whitelist (there is no app/devmate/release path).",
+    "RED exit code was 2 (collection error: module missing) vs expected_exit_code 1 in the task packet; failure reason matches expected_red_reason.",
+    "Rollback drill contract: a candidate without a rollback_commit fails the drill (passed=False, rolled_back=False); otherwise all steps are marked ok and rolled_back=True. UnverifiedItem records are preserved verbatim on the result and verified is only True when the drill passes AND there are no unverified items. The CLI release_drill.py returns exit 0 when the drill passes and 1 otherwise (verified via smoke test).",
+    "One CLI fix during GREEN: running scripts/devmate/release_drill.py directly added scripts/devmate to sys.path so `import scripts.devmate.release_kit` failed; the CLI now prepends the repo root (parents[2]) to sys.path before importing."
+  ],
+  "follow_up": [
+    "primary-integrator: this is the final devmate module. Merge codex/devmate/dm-01-module through codex/devmate/dm-14-module into codex/enterprise-agent-runtime-v2-pr in dependency order, then run the full post-merge regression, contract tests, build, security and rollback drills before any learning/interview/resume/summary documents are produced.",
+    "No learning/interview/resume/summary documents generated, per governance."
+  ]
+}
