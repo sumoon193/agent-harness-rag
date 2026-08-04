@@ -1,0 +1,65 @@
+{
+  "task_id": "DM-01",
+  "project_id": "devmate",
+  "branch": "codex/devmate/dm-01-module",
+  "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
+  "commit_sha": "979e4193aeed985a385c4392fd5219ec45153569",
+  "status": "pushed",
+  "changed_files": [
+    "scripts/audit_case_command.py",
+    "tests/audit/test_dm_01.py",
+    ".agent-governance/handoffs/DM-01.json"
+  ],
+  "created_files": [
+    "scripts/audit_case_command.py",
+    "tests/audit/test_dm_01.py"
+  ],
+  "deleted_files": [],
+  "scope_deviations": [],
+  "red": {
+    "command": "python -m pytest tests/audit/test_dm_01.py -q -p no:cacheprovider",
+    "exit_code": 2,
+    "expected_exit_code": 1,
+    "result": "observed",
+    "detail": "ModuleNotFoundError: No module named 'scripts.audit_case_command' — target entry not implemented"
+  },
+  "green": {
+    "command": "python -m pytest tests/audit/test_dm_01.py -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "10 passed"
+  },
+  "regression": {
+    "command": "python -m pytest tests/devmate -q",
+    "exit_code": 4,
+    "result": "blocked",
+    "detail": "ERROR: file or directory not found: tests/devmate",
+    "reason": "task-packet regression target tests/devmate does not exist on this branch; it is created from DM-02 onward (tests/devmate/contracts/**). Full project suite run as supplementary regression: 317 passed, 11 deselected, no breakage."
+  },
+  "inspection": {
+    "scope_gate": "passed",
+    "test_integrity_gate": "passed",
+    "secrets_gate": "passed",
+    "focused_tests_gate": "passed",
+    "regression_gate": "blocked (see regression)",
+    "supplementary_regression": "python -m pytest tests -q -p no:cacheprovider -> 317 passed, 11 deselected, 1 deprecation warning",
+    "audit_suite": "python -m pytest tests/audit -q -p no:cacheprovider -> 22 passed"
+  },
+  "not_run": [
+    "remote branch protection verification (manifest remote_protection: unverified)",
+    "external service / network-dependent tests (DM-01 capabilities: network disabled, no external services)"
+  ],
+  "unverified": [
+    "task-packet regression target tests/devmate (directory does not exist on this branch)",
+    "remote branch protection"
+  ],
+  "known_risks": [
+    "Defined regression command 'python -m pytest tests/devmate -q' exits 4: tests/devmate directory does not exist. This is a pre-existing task-packet gap for the first module, not caused by this change. Supplementary full-suite regression (317 passed) confirms no breakage.",
+    "RED exit code was 2 (collection error: entry module missing) vs expected_exit_code 1 in the task packet; failure reason matches expected_red_reason '目标行为或入口尚未实现'.",
+    "Activated project task packet rebinds base_sha to 187259e (per 'activate 时重绑定' rule); central tasks/devmate/DM-01.json copy retains 8e1c443 and is not authoritative for this branch."
+  ],
+  "follow_up": [
+    "primary-integrator: decide whether to adjust DM-01 regression_commands or create a tests/devmate placeholder before the regression gate can pass for this branch.",
+    "No learning/interview/resume/summary documents generated, per governance."
+  ]
+}
