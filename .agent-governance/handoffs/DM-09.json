@@ -1,0 +1,71 @@
+{
+  "task_id": "DM-09",
+  "project_id": "devmate",
+  "branch": "codex/devmate/dm-09-module",
+  "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
+  "commit_sha": "9a051e0b9e395e183eb468349fcc1041dcea04f5",
+  "status": "pushed",
+  "changed_files": [
+    "app/devmate/sandbox/__init__.py",
+    "app/devmate/sandbox/executor.py",
+    "app/devmate/sandbox/types.py",
+    "tests/devmate/sandbox/test_dm_09.py",
+    ".agent-governance/handoffs/DM-09.json"
+  ],
+  "created_files": [
+    "app/devmate/sandbox/__init__.py",
+    "app/devmate/sandbox/executor.py",
+    "app/devmate/sandbox/types.py",
+    "tests/devmate/sandbox/test_dm_09.py"
+  ],
+  "deleted_files": [],
+  "scope_deviations": [
+    "None: all changes are inside the DM-09 whitelist (app/devmate/sandbox/**, tests/devmate/sandbox/**). 4 files / 228 insertions / 0 deletions, within max_changed_files=8 and max_diff_lines=800."
+  ],
+  "red": {
+    "command": "python -m pytest tests/devmate/sandbox/test_dm_09.py -q -p no:cacheprovider",
+    "exit_code": 2,
+    "expected_exit_code": 1,
+    "result": "observed",
+    "detail": "ModuleNotFoundError: No module named 'app.devmate.sandbox' — target entry not implemented"
+  },
+  "green": {
+    "command": "python -m pytest tests/devmate/sandbox/test_dm_09.py -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed"
+  },
+  "regression": {
+    "command": "python -m pytest tests/devmate -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed on this branch (only DM-09 tests present; previous modules live on their own branches until integration)"
+  },
+  "inspection": {
+    "task_packet_gate": "passed",
+    "branch_policy_gate": "passed",
+    "scope_gate": "passed",
+    "test_integrity_gate": "passed",
+    "secrets_gate": "passed",
+    "focused_tests_gate": "passed",
+    "regression_gate": "passed",
+    "full_suite": "python -m pytest tests -q -p no:cacheprovider -> 314 passed, 11 deselected, 1 deprecation warning"
+  },
+  "not_run": [
+    "remote branch protection verification (manifest remote_protection: unverified)",
+    "real process/container execution: the sandbox is a deterministic in-memory executor (resource caps applied to declared command metadata), not a real OS sandbox. Real sandboxing would require external services/containers which are disabled."
+  ],
+  "unverified": [
+    "remote branch protection",
+    "real OS-level sandbox isolation (container/cgroup enforcement)"
+  ],
+  "known_risks": [
+    "DM-09 branch is based on integration commit 187259e and does NOT include DM-01..DM-08 (per user direction to implement without merging). app/devmate/sandbox/** is self-contained.",
+    "RED exit code was 2 (collection error: module missing) vs expected_exit_code 1 in the task packet; failure reason matches expected_red_reason.",
+    "The observable 'candidate patch only executes declared commands in a resource-limited sandbox' is implemented as a deterministic in-memory executor: undeclared commands exit 127, commands exceeding cpu_limit/memory_limit exit 137 and set resource_exceeded=True, and the module source is asserted to contain no network/subprocess escape (test scans for forbidden module names). Real container-based isolation is explicitly unverified and must not be claimed as real."
+  ],
+  "follow_up": [
+    "primary-integrator: merge codex/devmate/dm-01-module through codex/devmate/dm-09-module into codex/enterprise-agent-runtime-v2-pr in dependency order, then activate DM-10.",
+    "No learning/interview/resume/summary documents generated, per governance."
+  ]
+}
