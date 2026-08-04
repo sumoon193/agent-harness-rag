@@ -1,0 +1,75 @@
+{
+  "task_id": "DM-02",
+  "project_id": "devmate",
+  "branch": "codex/devmate/dm-02-module",
+  "base_sha": "187259ed5b3a8bc0f64e7c7a82c1a1e7d494c5c5",
+  "commit_sha": "fd1e303d451cc7c1da6a60d35a5fec0402c9bf5e",
+  "status": "pushed",
+  "changed_files": [
+    "app/devmate/contracts/__init__.py",
+    "app/devmate/contracts/commands.py",
+    "app/devmate/contracts/ports.py",
+    "app/devmate/contracts/state.py",
+    "docs/devmate/contracts/README.md",
+    "tests/devmate/contracts/test_dm_02.py",
+    ".agent-governance/handoffs/DM-02.json"
+  ],
+  "created_files": [
+    "app/devmate/contracts/__init__.py",
+    "app/devmate/contracts/commands.py",
+    "app/devmate/contracts/ports.py",
+    "app/devmate/contracts/state.py",
+    "docs/devmate/contracts/README.md",
+    "tests/devmate/contracts/test_dm_02.py"
+  ],
+  "deleted_files": [],
+  "scope_deviations": [
+    "app/devmate/__init__.py was initially created but removed in the amended commit: it is outside the task whitelist (app/devmate/contracts/**). app/devmate works as a namespace package."
+  ],
+  "red": {
+    "command": "python -m pytest tests/devmate/contracts/test_dm_02.py -q -p no:cacheprovider",
+    "exit_code": 2,
+    "expected_exit_code": 1,
+    "result": "observed",
+    "detail": "ModuleNotFoundError: No module named 'app.devmate' — target entry not implemented"
+  },
+  "green": {
+    "command": "python -m pytest tests/devmate/contracts/test_dm_02.py -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed"
+  },
+  "regression": {
+    "command": "python -m pytest tests/devmate -q -p no:cacheprovider",
+    "exit_code": 0,
+    "result": "passed",
+    "detail": "7 passed (tests/devmate now exists; this also unblocks the DM-01 regression target)"
+  },
+  "inspection": {
+    "task_packet_gate": "passed",
+    "branch_policy_gate": "passed",
+    "scope_gate": "passed",
+    "test_integrity_gate": "passed",
+    "secrets_gate": "passed",
+    "focused_tests_gate": "passed",
+    "regression_gate": "passed",
+    "full_suite": "python -m pytest tests -q -p no:cacheprovider -> 314 passed, 11 deselected, 1 deprecation warning"
+  },
+  "not_run": [
+    "remote branch protection verification (manifest remote_protection: unverified)",
+    "external service / network-dependent tests (DM-02 capabilities: network disabled, no external services)"
+  ],
+  "unverified": [
+    "remote branch protection"
+  ],
+  "known_risks": [
+    "DM-02 branch is based on integration commit 187259e and does NOT include DM-01 (codex/devmate/dm-01-module not merged, per user direction to implement without merging). Both branches share the same base; integrator must merge both. No file overlap between DM-01 and DM-02 scopes, so merge is expected to be clean.",
+    "app/devmate is a PEP 420 namespace package (no __init__.py) because the task whitelist only allows app/devmate/contracts/**. Verified import and tests pass.",
+    "RED exit code was 2 (collection error: module missing) vs expected_exit_code 1 in the task packet; failure reason matches expected_red_reason.",
+    "public_api_changes is true per generated capability but no HTTP API is built; /devmate/cases and devmate_event table obligations are deferred to later modules (DM-04/DM-03)."
+  ],
+  "follow_up": [
+    "primary-integrator: merge codex/devmate/dm-01-module and codex/devmate/dm-02-module into codex/enterprise-agent-runtime-v2-pr in dependency order (DM-01 then DM-02), then activate DM-03.",
+    "No learning/interview/resume/summary documents generated, per governance."
+  ]
+}
