@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import approvals, agent_runs, cases, documents, eval_runs, health, protocols
+from app.api.devmate import router as devmate_router, webhook_router as devmate_webhook_router
 from app.api.errors import app_error_handler, generic_error_handler
 from app.config import get_settings
 from app.core.exceptions import AppError
@@ -82,6 +83,8 @@ def create_app() -> FastAPI:
     app.include_router(eval_runs.router)
     app.include_router(cases.router)
     app.include_router(protocols.router)
+    app.include_router(devmate_router)
+    app.include_router(devmate_webhook_router)
 
     return app
 
