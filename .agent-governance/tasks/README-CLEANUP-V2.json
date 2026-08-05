@@ -1,0 +1,20 @@
+{
+  "task_id": "README-CLEANUP-V2",
+  "project_id": "devmate",
+  "dependencies": ["README-CLEANUP-V1"],
+  "goal": "修复公开根文档遗漏、失效审计陈述和 Windows npm 治理运行器",
+  "priority": "high",
+  "owner_model": "implementation-agent",
+  "reviewer": "primary-integrator",
+  "branch": "codex/devmate/readme-cleanup-v2",
+  "base_ref": "codex/devmate/readme-cleanup-v1",
+  "base_sha": "33b6628c10dfbea38d8b1f61919c8f83f65702a8",
+  "max_changed_files": 20,
+  "max_diff_lines": 3000,
+  "scope": {"allowed_paths": ["开发规划.md", "docs/audit/**", "tests/governance/**", "tools/governance/run.py"], "allowed_create_paths": ["tests/governance/**"], "allowed_delete_paths": [], "read_only_paths": ["README.md", "LICENSE", "app/**", "frontend/**", "scripts/**"], "read_denylist": [".env", "app/runtime/**"], "write_denylist": [".env", "app/runtime/**"]},
+  "capabilities": {"network": "disabled", "external_services": [], "docker": "disabled", "dependency_changes": false, "public_api_changes": false, "database_changes": false, "runtime_kernel_changes": false, "approval_flow_changes": false},
+  "behavior": {"observable_result": "全部公开 Markdown 不再引用已删除展示资料，Windows 聚合回归可解析 npm.cmd", "inputs": ["README-CLEANUP-V1 规格审查结果"], "outputs": ["根文档清理", "审计陈述修正", "Windows 命令解析修复", "更新后的真实 handoff"], "states": ["red-observed", "followup-fixed", "regression-passed", "handoff-ready"], "invariants": ["不修改 README-CLEANUP-V1 任务包或历史交接", "仅保留工程实施、验证和运维资料", "不得把 blocked 门禁标记为完成"], "failure_modes": ["公开文档仍有失效引用", "Windows npm 无法执行", "handoff 状态与门禁不一致"], "non_goals": ["修改生产行为", "读取或提交密钥", "merge、rebase 或 force-push"]},
+  "tdd": {"red_test_files": ["tests/governance/test_public_documentation_contract.py"], "red_command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider", "expected_red_exit_code": 1, "expected_red_reason": "根目录技术文档和审计说明仍包含失效展示引用，Windows runner 未解析 npm.cmd", "implementation_boundary": "仅修复公开文档遗漏、审计陈述和治理命令解析", "green_command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider", "regression_commands": ["python -m pytest -q -p no:cacheprovider", "npm --prefix frontend run build"]},
+  "security": {"secret_policy": "no-secret-content", "subprocess_policy": "argv-only", "path_policy": "repository-relative", "log_redaction": "required", "read_denylist": [".env", "app/runtime/**"], "write_denylist": [".env", "app/runtime/**"]},
+  "delivery": {"commit_required": true, "push_allowed": true, "merge_allowed": false, "force_push_allowed": false, "handoff_file": ".agent-governance/handoffs/README-CLEANUP-V2.json", "learner_confirmation_required": false}
+}
