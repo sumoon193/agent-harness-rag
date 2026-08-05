@@ -1,0 +1,50 @@
+{
+  "task_id": "README-CLEANUP-V3",
+  "project_id": "devmate",
+  "branch": "codex/devmate/readme-cleanup-v3",
+  "base_sha": "d499f7eeb3c18bf4eca6b853b129d1cc5375615f",
+  "commit_sha": "69d0ce9e358637d963d3e3c7a31696e70141cd1d",
+  "red": {
+    "command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider",
+    "result": "7 failed, 7 passed：公开 Markdown 清单漏掉 demo_docs、重复 frontend README 未删除，命令解析函数尚未实现。"
+  },
+  "green": {
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider",
+    "result": "14 passed"
+  },
+  "regression": {
+    "commands": [
+      ".\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider",
+      "npm --prefix frontend run build",
+      ".\\.venv\\Scripts\\python.exe tools/governance/run.py regression"
+    ],
+    "result": "项目虚拟环境全量回归 531 passed、11 deselected、1 个既有 Starlette 弃用警告；Vue/Vite 生产构建通过；聚合 regression 门禁通过。"
+  },
+  "governance": {
+    "passed": [
+      "status",
+      "manifest",
+      "task-packet",
+      "branch-policy",
+      "scope",
+      "test-integrity",
+      "secrets",
+      "focused-tests",
+      "regression"
+    ],
+    "blocked": []
+  },
+  "files": [
+    "demo_docs/badcases/README.md",
+    "frontend/README.md",
+    "tests/governance/test_public_documentation_contract.py",
+    "tools/governance/run.py"
+  ],
+  "unrun": [],
+  "risks": [
+    "前端构建报告第三方 @vueuse/core 注释位置与 chunk size 警告，不影响退出码。",
+    "系统 Python 缺少部分可选依赖；完整回归应使用仓库 .venv。",
+    "README-CLEANUP-V1 曾因回归依赖环境阻塞；V2 修正文档边界，V3 完成全量清单和跨平台命令拆分并重新通过回归。"
+  ],
+  "status": "complete"
+}
