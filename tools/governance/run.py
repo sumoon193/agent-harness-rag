@@ -127,7 +127,9 @@ if activation_task != (root / task_relative).read_text(encoding="utf-8"):
 
 def changed_entries():
     committed = []
-    for line in git("diff", "--name-status", activation_commit + "..HEAD").splitlines():
+    for line in git(
+        "-c", "core.quotePath=false", "diff", "--name-status", activation_commit + "..HEAD"
+    ).splitlines():
         if not line:
             continue
         status, path = line.split("\t", 1)
