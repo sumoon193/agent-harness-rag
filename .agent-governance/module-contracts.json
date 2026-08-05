@@ -5,7 +5,7 @@
     "状态推进必须通过 typed command 与合法状态机",
     "外部依赖必须有 Fake 或 Recorded adapter，单元测试禁止网络",
     "用户可见结论必须关联 provenance/citation；证据不足保持 blocked/review",
-    "项目完成前禁止生成学习、面试、简历和总结材料"
+    "仅保留工程实施、验证和运维资料"
   ],
   "governance_version": "1.1.0",
   "modules": [

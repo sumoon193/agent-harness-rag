@@ -1,7 +1,5 @@
 {
-  "allowed_untracked_paths": [
-    "README-DEVMATE.md"
-  ],
+  "allowed_untracked_paths": [],
   "baseline_sha": "8e1c44346da9523e499750e71db684b82e38726f",
   "branch_prefix": "codex/",
   "default_branch": "main",
@@ -17,7 +15,6 @@
   "project_profile": ".agent-governance/project-profile.json",
   "protected_paths": [
     ".env",
-    "README-DEVMATE.md",
     "app/runtime/**"
   ],
   "remote_protection": "unverified",
@@ -38,7 +35,6 @@
   ],
   "sensitive_paths": [
     ".env",
-    "README-DEVMATE.md",
     "app/runtime/**"
   ],
   "status": "managed"
