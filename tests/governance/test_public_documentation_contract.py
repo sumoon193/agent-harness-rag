@@ -164,7 +164,16 @@ def test_public_markdown_does_not_reference_removed_presentation_files() -> None
 def test_development_plan_uses_engineering_language_only() -> None:
     text = _read_utf8(ROOT / "开发规划.md")
 
-    for term in ("项目亮点", "RAG项目面试亮点", "面试可演示"):
+    for term in (
+        "项目亮点",
+        "RAG项目面试亮点",
+        "面试可演示",
+        "前端演示台",
+        "重点展示",
+        "核心亮点",
+        "对应亮点",
+        "前端展示",
+    ):
         assert term not in text, f"开发规划仍有展示型措辞：{term}"
 
 
