@@ -3,7 +3,7 @@
   "project_id": "devmate",
   "branch": "codex/devmate/readme-cleanup-final4",
   "base_sha": "339541c85dab9f7fa11cbd8c6af4d96df13d2a98",
-  "commit_sha": "fd91369",
+  "commit_sha": "59e830f",
   "red": "旧公开材料和命令契约测试失败",
   "green": "14 passed",
   "regression": "531 passed, 11 deselected; Vue/Vite build passed",
