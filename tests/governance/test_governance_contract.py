@@ -29,3 +29,14 @@ def test_editable_install_metadata_is_ignored() -> None:
 def test_governance_commands_use_current_python_interpreter() -> None:
     source = (ROOT / "tools" / "governance" / "run.py").read_text(encoding="utf-8")
     assert "sys.executable" in source
+
+
+def test_ci_installs_declared_async_test_runtime() -> None:
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    test_dependencies = config["project"]["optional-dependencies"]["test"]
+    workflow = (ROOT / ".github" / "workflows" / "governance.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert any(dependency.startswith("pytest-asyncio") for dependency in test_dependencies)
+    assert 'pip install -e ".[test]"' in workflow
