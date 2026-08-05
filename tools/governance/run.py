@@ -126,8 +126,13 @@ if activation_task != (root / task_relative).read_text(encoding="utf-8"):
     blocked("task packet changed after activation")
 
 def changed_entries():
-    committed = set(filter(None, git("diff", "--name-only", activation_commit + "..HEAD").splitlines()))
-    result = [("C ", path.replace("\\", "/")) for path in committed]
+    committed = []
+    for line in git("diff", "--name-status", activation_commit + "..HEAD").splitlines():
+        if not line:
+            continue
+        status, path = line.split("\t", 1)
+        committed.append((status[:1] + " ", path.replace("\\", "/")))
+    result = committed
     allowed_untracked = manifest.get("allowed_untracked_paths", [])
     for status, path in status_entries():
         if status == "??" and matches(path, allowed_untracked):
@@ -176,6 +181,8 @@ elif args.gate == "scope":
     governance_exempt = [".agent-governance/**", ".github/workflows/governance.yml", "tools/governance/**", "AGENTS.md"]
     for status, path in changed:
         if matches(path, governance_exempt):
+            continue
+        if status.startswith("D") and matches(path, scope.get("allowed_delete_paths", [])):
             continue
         if matches(path, forbidden):
             blocked("forbidden path changed: " + path)
