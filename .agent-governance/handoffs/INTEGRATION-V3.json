@@ -3,10 +3,10 @@
   "project_id": "devmate",
   "branch": "codex/devmate/integration-v3",
   "base_sha": "1bea64ac7c63b24fb8578778a26366e52a35f4f8",
-  "commit_sha": "d27a9e65773c210501b76736cc83ea1d5000e33b",
+  "commit_sha": "da56ca70261a69177067c2a5e179373c4ae81c12",
   "red": {
     "command": "python -m pytest tests/governance/test_governance_contract.py -q",
-    "observed": "detached push branches, ambiguous setuptools discovery and unignored egg-info were not covered"
+    "observed": "detached push branches, ambiguous setuptools discovery, unignored egg-info and PATH-dependent Python selection were not covered"
   },
   "green": {
     "command": "python -m pytest -q",
