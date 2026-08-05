@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -50,13 +52,13 @@ def _read_utf8(path: Path) -> str:
 
 
 def _public_markdown_files() -> list[Path]:
-    files = [
-        README,
-        ROOT / "AGENTS.md",
-        ROOT / "CLAUDE.md",
-        ROOT / ".agent-governance" / "AGENT-ENTRY.md",
-        ROOT / ".agent-governance" / "implementation-plan.md",
-    ]
+    files = list(ROOT.glob("*.md"))
+    files.extend(
+        [
+            ROOT / ".agent-governance" / "AGENT-ENTRY.md",
+            ROOT / ".agent-governance" / "implementation-plan.md",
+        ]
+    )
     files.extend((ROOT / "docs").rglob("*.md"))
     return sorted({path for path in files if path.is_file()})
 
@@ -141,6 +143,69 @@ def test_public_engineering_documents_exclude_presentation_language() -> None:
                 violations.append(f"{relative_path}: {term}")
 
     assert not violations, "公开工程文档仍有展示型措辞：\n" + "\n".join(violations)
+
+
+def test_public_markdown_does_not_reference_removed_presentation_files() -> None:
+    violations: list[str] = []
+    removed_names = {
+        Path(relative_path).name for relative_path in REMOVED_PRESENTATION_FILES
+    }
+
+    for path in _public_markdown_files():
+        relative_path = path.relative_to(ROOT).as_posix()
+        text = _read_utf8(path)
+        for removed_name in removed_names:
+            if removed_name in text:
+                violations.append(f"{relative_path}: {removed_name}")
+
+    assert not violations, "公开 Markdown 仍引用已删除文件：\n" + "\n".join(violations)
+
+
+def test_development_plan_uses_engineering_language_only() -> None:
+    text = _read_utf8(ROOT / "开发规划.md")
+
+    for term in ("项目亮点", "RAG项目面试亮点", "面试可演示"):
+        assert term not in text, f"开发规划仍有展示型措辞：{term}"
+
+
+def test_governance_runner_resolves_windows_npm_cmd() -> None:
+    source = _read_utf8(ROOT / "tools" / "governance" / "run.py")
+    tree = ast.parse(source)
+    resolver = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "_resolve_command"
+        ),
+        None,
+    )
+    assert resolver is not None, "治理运行器缺少可测试的命令解析函数"
+
+    calls: list[str] = []
+
+    def which(command: str) -> str | None:
+        calls.append(command)
+        if command == "npm.cmd":
+            return r"C:\Program Files\nodejs\npm.cmd"
+        return None
+
+    namespace = {
+        "os": SimpleNamespace(name="nt"),
+        "shutil": SimpleNamespace(which=which),
+        "sys": SimpleNamespace(executable=r"D:\py\python.exe"),
+    }
+    isolated_module = ast.Module(body=[resolver], type_ignores=[])
+    ast.fix_missing_locations(isolated_module)
+    exec(compile(isolated_module, "tools/governance/run.py", "exec"), namespace)
+
+    arguments = namespace["_resolve_command"](["npm", "--prefix", "frontend"])
+
+    assert arguments == [
+        r"C:\Program Files\nodejs\npm.cmd",
+        "--prefix",
+        "frontend",
+    ]
+    assert calls == ["npm", "npm.cmd"]
 
 
 def test_mutable_governance_uses_engineering_materials_rule() -> None:

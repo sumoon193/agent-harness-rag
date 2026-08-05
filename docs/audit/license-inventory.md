@@ -69,7 +69,7 @@
 1. `psycopg`（LGPL-3.0-only）：仅作为 PostgreSQL 驱动使用，不修改、不分发其源码；商业分发约束待人工确认。
 2. `aiohttp`（Apache-2.0 AND MIT）：双重许可，需按实际分发方式选择条款。
 3. `.env` 及敏感路径：只识别文件名，不读取正文；复用决定固定为 `review`。
-4. `README-DEVMATE.md`：已有未跟踪文件，本卡不纳入、不覆盖、不改写。
+4. 旧根目录说明文件已按正式清理任务删除，不纳入当前来源清单。
 5. 所有 `docs/audit/`、`scripts/audit_origin_map.py`、`scripts/scan_domain_coupling.py`、`tests/audit/` 新文件：本卡自身产出，来源提交待与审计提交一起确认。
 
 ## 7. 证据索引
