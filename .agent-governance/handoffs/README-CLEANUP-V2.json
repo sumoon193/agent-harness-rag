@@ -1,0 +1,50 @@
+{
+  "task_id": "README-CLEANUP-V2",
+  "project_id": "devmate",
+  "branch": "codex/devmate/readme-cleanup-v2",
+  "base_sha": "33b6628c10dfbea38d8b1f61919c8f83f65702a8",
+  "commit_sha": "3650144c99861dbf6bb935c44d0bd4019b9c4b14",
+  "red": {
+    "command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider",
+    "result": "4 failed, 5 passed；失败来自开发规划的旧展示措辞、两份审计文档对已删除文件的过期引用，以及治理运行器缺少 Windows npm.cmd 解析"
+  },
+  "green": {
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider",
+    "result": "9 passed"
+  },
+  "regression": {
+    "commands": [
+      ".\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider",
+      "npm --prefix frontend run build",
+      ".\\.venv\\Scripts\\python.exe tools/governance/run.py regression"
+    ],
+    "result": "后端 526 passed、11 deselected、1 个 Starlette 依赖弃用警告；前端 Vue/Vite 生产构建通过；聚合 regression 门禁在 Windows 成功解析并执行 npm.cmd"
+  },
+  "governance": {
+    "passed": [
+      "status",
+      "manifest",
+      "task-packet",
+      "branch-policy",
+      "scope",
+      "test-integrity",
+      "secrets",
+      "focused-tests",
+      "regression"
+    ],
+    "blocked": []
+  },
+  "files": [
+    "开发规划.md",
+    "docs/audit/README.md",
+    "docs/audit/license-inventory.md",
+    "tests/governance/test_public_documentation_contract.py",
+    "tools/governance/run.py"
+  ],
+  "unrun": [],
+  "risks": [
+    "前端构建仍报告第三方 @vueuse/core pure annotation 与 chunk size 警告，不影响构建退出码",
+    "系统 Python 未安装项目完整测试依赖；治理门禁需由仓库 .venv 的 Python 启动"
+  ],
+  "status": "complete"
+}
