@@ -3,10 +3,10 @@
   "project_id": "devmate",
   "branch": "codex/devmate/readme-cleanup-v2",
   "base_sha": "33b6628c10dfbea38d8b1f61919c8f83f65702a8",
-  "commit_sha": "3650144c99861dbf6bb935c44d0bd4019b9c4b14",
+  "commit_sha": "72147382ba8f21bb00a74afdf7379b2a57798c09",
   "red": {
     "command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider",
-    "result": "4 failed, 5 passed；失败来自开发规划的旧展示措辞、两份审计文档对已删除文件的过期引用，以及治理运行器缺少 Windows npm.cmd 解析"
+    "result": "初轮 4 failed, 5 passed；规格复审补充精确短语后 1 failed, 8 passed，命中开发规划中的前端演示台、重点展示、核心亮点、对应亮点和前端展示措辞"
   },
   "green": {
     "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider",
@@ -18,7 +18,7 @@
       "npm --prefix frontend run build",
       ".\\.venv\\Scripts\\python.exe tools/governance/run.py regression"
     ],
-    "result": "后端 526 passed、11 deselected、1 个 Starlette 依赖弃用警告；前端 Vue/Vite 生产构建通过；聚合 regression 门禁在 Windows 成功解析并执行 npm.cmd"
+    "result": "规格复审修复后，后端 526 passed、11 deselected、1 个 Starlette 依赖弃用警告；前端 Vue/Vite 生产构建通过；聚合 regression 门禁在 Windows 成功解析并执行 npm.cmd"
   },
   "governance": {
     "passed": [
@@ -30,7 +30,8 @@
       "test-integrity",
       "secrets",
       "focused-tests",
-      "regression"
+      "regression",
+      "handoff"
     ],
     "blocked": []
   },
