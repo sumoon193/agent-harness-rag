@@ -17,6 +17,7 @@ from app.devmate.models import (
     DM07Result,
     DiagnosisParseError,
     InvalidModeError,
+    ModelUnavailableError,
     TypedDiagnosis,
 )
 
@@ -89,11 +90,22 @@ def test_invalid_output_degrades_to_fake() -> None:
     assert result.diagnosis.rule == "fake_rule"
 
 
-def test_real_mode_unavailable_degrades_to_fake() -> None:
-    result = CaseCommand().execute(_input(mode="real"))
+def test_real_mode_without_provider_is_blocked() -> None:
+    with pytest.raises(ModelUnavailableError):
+        CaseCommand().execute(_input(mode="real"))
 
-    assert result.degraded is True
-    assert result.diagnosis.rule == "fake_rule"
+
+def test_real_mode_uses_injected_provider() -> None:
+    class Provider:
+        def generate(self, *, case_id: str, prompt: str) -> str:
+            assert case_id == "case-1"
+            assert prompt
+            return RECORDED_RAW
+
+    result = CaseCommand(model_provider=Provider()).execute(_input(mode="real"))
+    assert result.mode == "real"
+    assert result.degraded is False
+    assert result.diagnosis.rule == "reported_rule"
 
 
 def test_invalid_mode_is_rejected() -> None:

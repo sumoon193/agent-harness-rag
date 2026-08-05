@@ -1,11 +1,8 @@
-"""模型 typed diagnosis command：Fake/Recorded 可降级。
-
-合同：``CaseCommand.execute(input: DM07Input) -> DM07Result``。
-模型输出经 typed parser；模型不可用（real 模式，网络禁用）或输出非法
-时降级到确定性 Fake/Recorded 结果。
-"""
+"""Typed diagnosis command with explicit offline and real execution modes."""
 
 from __future__ import annotations
+
+from typing import Protocol
 
 from app.devmate.models.parser import DiagnosisParseError, parse_typed_diagnosis
 from app.devmate.models.types import DM07Input, DM07Result
@@ -17,13 +14,27 @@ DEFAULT_FAKE_RAW = (
 
 
 class InvalidModeError(ValueError):
-    """未知模型模式。"""
+    """The requested model mode is not supported."""
+
+
+class ModelUnavailableError(RuntimeError):
+    """Real model execution requires an explicitly configured provider."""
+
+
+class ModelProvider(Protocol):
+    def generate(self, *, case_id: str, prompt: str) -> str: ...
 
 
 class CaseCommand:
-    def __init__(self, fake_raw: str = DEFAULT_FAKE_RAW, parser=parse_typed_diagnosis) -> None:
+    def __init__(
+        self,
+        fake_raw: str = DEFAULT_FAKE_RAW,
+        parser=parse_typed_diagnosis,
+        model_provider: ModelProvider | None = None,
+    ) -> None:
         self._fake_raw = fake_raw
         self._parser = parser
+        self._model_provider = model_provider
 
     def execute(self, input_: DM07Input) -> DM07Result:
         if input_.mode == "fake":
@@ -35,14 +46,24 @@ class CaseCommand:
             else:
                 actual_mode, degraded = "recorded", False
         elif input_.mode == "real":
-            # 网络禁用：真实模型不可用，固定降级到 Fake。
-            raw, actual_mode, degraded = self._fake_raw, "fake", True
+            if self._model_provider is None:
+                raise ModelUnavailableError("real mode requires a configured model provider")
+            raw = self._model_provider.generate(
+                case_id=input_.case_id,
+                prompt=(
+                    "Return a typed DevMate diagnosis using summary, severity, rule, "
+                    "confidence and evidence fields. Case: " + input_.case_id
+                ),
+            )
+            actual_mode, degraded = "real", False
         else:
             raise InvalidModeError(input_.mode)
 
         try:
             diagnosis = self._parser(raw)
         except DiagnosisParseError:
+            if input_.mode == "real":
+                raise
             diagnosis = self._parser(self._fake_raw)
             degraded = True
 

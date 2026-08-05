@@ -1,5 +1,51 @@
 # EnterpriseMind Agent Runtime
 
+## DevMate integration quick start
+
+DevMate is the repository's typed diagnosis and repair workflow. The current
+integration mounts its FastAPI routes in `app.main`, keeps offline adapters for
+deterministic tests, and treats missing real model or GitHub configuration as
+`blocked` instead of silently falling back to Fake results.
+
+### Run locally
+
+```powershell
+Set-Location "D:\Code\pythonproject"
+& ".\.venv\Scripts\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Open:
+
+- API documentation: <http://127.0.0.1:8000/docs>
+- Health: <http://127.0.0.1:8000/health>
+- Optional Vue console: <http://127.0.0.1:5173>
+
+Start the optional frontend in a second terminal:
+
+```powershell
+Set-Location "D:\Code\pythonproject\frontend"
+npm install
+npm run dev
+```
+
+### Verify
+
+```powershell
+Set-Location "D:\Code\pythonproject"
+& ".\.venv\Scripts\python.exe" -m pytest -q
+
+$env:DEVMATE_BASE_URL = "http://127.0.0.1:8000"
+& ".\.venv\Scripts\python.exe" ".\scripts\devmate\live_smoke.py" --component health
+& ".\.venv\Scripts\python.exe" ".\scripts\devmate\live_smoke.py" --component model
+```
+
+`QWEN_API_KEY` and `QWEN_CHAT_MODEL` are required only for the real model
+smoke. Keep secrets in local environment variables; never commit `.env`.
+
+---
+
+The sections below contain the broader EnterpriseMind runtime documentation.
+
 EnterpriseMind 是面向企业内部制度型长流程的 **Agent Runtime 与执行治理平台**。HR Shared Service 是首个 Reference Application，用“新员工入职到转正”的跨天 Case 验证证据检索、计划、人工审批、权限控制、故障恢复、幂等副作用、持久定时器和审计能力。
 
 它不是 HR Chatbot，也不是把 LLM 套在固定 BPM 上：

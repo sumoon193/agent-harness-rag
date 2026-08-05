@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from app.devmate.models.command import CaseCommand, InvalidModeError
+from app.devmate.models.command import (
+    CaseCommand,
+    InvalidModeError,
+    ModelProvider,
+    ModelUnavailableError,
+)
 from app.devmate.models.parser import DiagnosisParseError, parse_typed_diagnosis
 from app.devmate.models.types import DM07Input, DM07Result, TypedDiagnosis
 
@@ -12,6 +17,8 @@ __all__ = [
     "DM07Input",
     "DM07Result",
     "InvalidModeError",
+    "ModelProvider",
+    "ModelUnavailableError",
     "TypedDiagnosis",
     "parse_typed_diagnosis",
 ]
