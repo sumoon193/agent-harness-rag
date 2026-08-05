@@ -44,6 +44,13 @@ smoke. Keep secrets in local environment variables; never commit `.env`.
 
 ---
 
+## Checkpoint、Event Store 与 Projection
+
+- LangGraph checkpoint 只保存执行位置；默认 `GRAPH_CHECKPOINTER_BACKEND=memory`。
+- 跨进程恢复可设置 `GRAPH_CHECKPOINTER_BACKEND=postgres`，并通过 `GRAPH_CHECKPOINTER_POSTGRES_URL` 配置连接。
+- Event Store 保存不可变业务事实，Projection 服务查询和 UI；两者都不能由 checkpoint 替代。
+- PostgreSQL saver 在 FastAPI lifespan 内建表、打开并关闭连接池，单元测试仍不依赖数据库。
+
 The sections below contain the broader EnterpriseMind runtime documentation.
 
 EnterpriseMind 是面向企业内部制度型长流程的 **Agent Runtime 与执行治理平台**。HR Shared Service 是首个 Reference Application，用“新员工入职到转正”的跨天 Case 验证证据检索、计划、人工审批、权限控制、故障恢复、幂等副作用、持久定时器和审计能力。
