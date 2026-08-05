@@ -6,7 +6,7 @@
 
 **决策：** 项目不是普通 RAG Chatbot，而是自研 Agent Harness + RAG。
 
-**原因：** 普通 RAG 只能体现检索和回答能力，无法体现企业 agent 的执行治理。项目亮点应放在 Agent Run 生命周期、工具审批、状态恢复、ACL、审计和评测上。
+**原因：** 普通 RAG 只覆盖检索和回答，无法满足企业 agent 的执行治理需求。工程重点必须覆盖 Agent Run 生命周期、工具审批、状态恢复、ACL、审计和评测。
 
 **影响：** 所有模块都必须服务两个目标：RAG 提供 evidence，Harness 控制 agent 执行。
 
@@ -22,7 +22,7 @@
 
 **决策：** V1 只做 HR 制度流程场景，包括入职、转正、报销、请假和模拟 HR 工单。
 
-**原因：** HR 场景天然包含制度、角色、审批、流程和引用，适合展示 Agent Harness + RAG 的完整价值。
+**原因：** HR 场景天然包含制度、角色、审批、流程和引用，适合验证 Agent Harness + RAG 的完整工程闭环。
 
 **影响：** V1 不扩展到合同审查、代码助手、DevOps 或真实办公系统。
 
@@ -78,13 +78,13 @@
 
 **决策：** 前端做操作型控制台，当前实现采用 Vue 3 + Element Plus，第一屏展示 Case queue、Artifact Timeline、approval、timer 和 runtime metrics；单轮 Agent Run 移到兼容视图。
 
-**原因：** 项目需要演示真实工作流，而不是宣传页面。
+**原因：** 项目需要支撑真实工作流操作，而不是宣传页面。
 
 **影响：** UI 设计优先信息密度、状态可见性和操作闭环。
 
-## D-011：评测与可观测必须进入主叙事
+## D-011：评测与可观测必须进入主工程链路
 
-**决策：** RAGAS 和 Phoenix / OpenTelemetry 是项目核心亮点之一，不只是附属工具。
+**决策：** RAGAS 和 Phoenix / OpenTelemetry 是系统核心能力，不只是附属工具。
 
 **原因：** RAG 和 Agent 系统不能靠主观感觉调参，必须能用指标和 trace 排查问题。
 
@@ -94,15 +94,15 @@
 
 **决策：** 文档、注释和用户说明默认中文；代码标识符、路径、API 字段、模型名、框架名保留英文。
 
-**原因：** 项目主要用于中文学习和面试表达，但工程代码需要保持通用风格。
+**原因：** 中文文档便于团队协作和运维交接，英文代码标识符便于保持生态兼容性和通用工程风格。
 
 **影响：** 所有新增 Markdown 使用中文写作，必要英文只保留技术名词。
 
 ## D-013：V2 深化范围重新打开但受 Harness 边界约束
 
-**决策：** 为了形成 2026 年 Agent 后端简历亮点，重新打开 Loop Engineering、MCP 风格 adapter、Agent Safety Eval 和 Artifact Timeline。
+**决策：** 为增强 Agent Runtime 的执行治理能力，重新打开 Loop Engineering、MCP 风格 adapter、Agent Safety Eval 和 Artifact Timeline。
 
-**原因：** V1 已完成 Agent Harness + RAG 主链路。继续只强调 RAG 容易与大众简历重合，需要把重点上移到 Agent 执行治理、评测、工具边界和失败修复闭环。
+**原因：** V1 已完成 Agent Harness + RAG 主链路，但仅有检索与生成不足以覆盖生产运行需求，需要继续完善执行治理、评测、工具边界和失败修复闭环。
 
 **影响：** 新能力必须保持 fake/local first。MCP adapter 不能绕过现有 Tool Registry、approval、ACL、citation 和 trace 约束。所有新增评测必须可重复，不能依赖真实云模型作为单元测试前提。
 
@@ -110,7 +110,7 @@
 
 **决策：** 平台层使用通用 Case/Run/Event/Approval/Timer/Memory/Skill/Artifact；HR 只存在于 Skill、policy、adapter 和 eval dataset。
 
-**原因：** 面试价值来自场景合理逼出的工程问题，而不是把项目扩展成 HR SaaS。
+**原因：** 平台抽象必须由真实场景中的权限、审批、状态和恢复问题驱动，而不是把项目扩展成 HR SaaS。
 
 **影响：** 主 Demo 改为入职到转正长期 Case；报销和请假用于证明 Harness 未硬编码单一路径。
 

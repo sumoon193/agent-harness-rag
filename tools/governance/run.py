@@ -5,11 +5,49 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
+
+
+def _strip_paired_quotes(token):
+    if len(token) >= 2 and token[0] == token[-1] and token[0] in {'"', "'"}:
+        return token[1:-1]
+    return token
+
+
+def _split_command(command):
+    if not command or not command.strip():
+        blocked("task command is empty")
+    if os.name == "nt":
+        arguments = [
+            _strip_paired_quotes(token)
+            for token in shlex.split(command, posix=False)
+        ]
+    else:
+        arguments = shlex.split(command, posix=True)
+    if not arguments:
+        blocked("task command is empty")
+    return arguments
+
+
+def _resolve_command(arguments):
+    resolved = list(arguments)
+    if not resolved:
+        return resolved
+    if resolved[0] in {"python", "python3"}:
+        resolved[0] = sys.executable
+
+    executable = shutil.which(resolved[0])
+    if executable is None and os.name == "nt" and not resolved[0].lower().endswith(".cmd"):
+        executable = shutil.which(resolved[0] + ".cmd")
+    if executable is not None:
+        resolved[0] = executable
+    return resolved
+
 
 def blocked(message):
     raise SystemExit("blocked: " + message)
@@ -89,8 +127,15 @@ if activation_task != (root / task_relative).read_text(encoding="utf-8"):
     blocked("task packet changed after activation")
 
 def changed_entries():
-    committed = set(filter(None, git("diff", "--name-only", activation_commit + "..HEAD").splitlines()))
-    result = [("C ", path.replace("\\", "/")) for path in committed]
+    committed = []
+    for line in git(
+        "-c", "core.quotePath=false", "diff", "--name-status", activation_commit + "..HEAD"
+    ).splitlines():
+        if not line:
+            continue
+        status, path = line.split("\t", 1)
+        committed.append((status[:1] + " ", path.replace("\\", "/")))
+    result = committed
     allowed_untracked = manifest.get("allowed_untracked_paths", [])
     for status, path in status_entries():
         if status == "??" and matches(path, allowed_untracked):
@@ -140,6 +185,8 @@ elif args.gate == "scope":
     for status, path in changed:
         if matches(path, governance_exempt):
             continue
+        if status.startswith("D") and matches(path, scope.get("allowed_delete_paths", [])):
+            continue
         if matches(path, forbidden):
             blocked("forbidden path changed: " + path)
         if not matches(path, allowed):
@@ -179,9 +226,7 @@ elif args.gate in {"focused-tests", "regression"}:
     if not commands:
         blocked(field + " missing")
     for command in commands:
-        arguments = shlex.split(command)
-        if arguments and arguments[0] in {"python", "python3"}:
-            arguments[0] = sys.executable
+        arguments = _resolve_command(_split_command(command))
         result = subprocess.run(arguments, cwd=root)
         if result.returncode != 0:
             blocked(args.gate + " failed")

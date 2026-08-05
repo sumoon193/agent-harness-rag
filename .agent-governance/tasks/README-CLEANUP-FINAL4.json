@@ -1,0 +1,11 @@
+{
+  "task_id": "README-CLEANUP-FINAL4",
+  "project_id": "devmate",
+  "branch": "codex/devmate/readme-cleanup-final4",
+  "base_sha": "339541c85dab9f7fa11cbd8c6af4d96df13d2a98",
+  "max_changed_files": 35,
+  "max_diff_lines": 5000,
+  "scope": {"allowed_paths": ["README.md", "AGENTS.md", "CLAUDE.md", "开发规划.md", "demo_docs/**", "docs/**", "tests/governance/**", "tools/governance/run.py"], "allowed_create_paths": ["tests/governance/**"], "allowed_delete_paths": ["README-DEVMATE.md", "RAG项目面试亮点.md", "项目亮点.md", "frontend/README.md", "docs/面试高频问答与话术.md", "docs/agent-harness-deepening/05-metrics-and-resume-evidence.md", "docs/evidence/landing-narrative-design.md", "docs/superpowers/plans/**", "docs/superpowers/specs/**"], "read_denylist": [".env"], "write_denylist": [".env"]},
+  "tdd": {"green_command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider", "regression_commands": ["python -m pytest -q -p no:cacheprovider", "npm --prefix frontend run build"]},
+  "delivery": {"handoff_file": ".agent-governance/handoffs/README-CLEANUP-FINAL4.json"}
+}

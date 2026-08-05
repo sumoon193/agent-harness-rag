@@ -2,7 +2,7 @@
 
 ## 目标
 
-把 Agent Run 中分散的 evidence、plan、approval、tool call、tool result、trace、eval 结果串成时间线，便于演示、排障和面试复盘。
+把 Agent Run 中分散的 evidence、plan、approval、tool call、tool result、trace、eval 结果串成时间线，便于运行复盘、排障和审计。
 
 ## 事件类型
 

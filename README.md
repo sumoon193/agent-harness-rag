@@ -1,212 +1,156 @@
-# EnterpriseMind Agent Runtime
+# DevMate：企业级 Agent Runtime
 
-## DevMate integration quick start
+## 项目简介
 
-DevMate is the repository's typed diagnosis and repair workflow. The current
-integration mounts its FastAPI routes in `app.main`, keeps offline adapters for
-deterministic tests, and treats missing real model or GitHub configuration as
-`blocked` instead of silently falling back to Fake results.
+DevMate 是基于 EnterpriseMind Runtime 构建的工程诊断与修复协作服务。系统接收 GitHub CI 失败事件，将证据固定为可追踪 Case，并通过确定性诊断、模型辅助分析、修复计划、隔离执行、人工审批和 GitHub 副作用适配器推进完整状态链。
 
-### Run locally
+项目默认使用不访问外部网络的离线运行路径；真实模型和在线服务通过独立适配器与 live smoke 验证。缺少真实配置时会明确返回 `blocked`，不会把离线结果标记为真实服务通过。
+
+## 核心能力
+
+- 明确分离 Checkpoint、Event Store 与 Projection：Checkpoint 保存执行位置，Event Store 保存审计事实，Projection 支撑查询与界面，并与 Outbox、SideEffect Ledger 共同保障可恢复状态。
+- 对重复 webhook、命令和外部副作用执行幂等校验与审计记录。
+- 使用 typed command 和合法状态机推进 `created`、`running`、`waiting_approval`、`completed`、`failed`。
+- 将确定性诊断与 Qwen 模型分析分离，模型输出必须通过 typed parser。
+- 修复候选只在资源受限 Sandbox 中执行声明命令，写操作必须经过审批。
+- 对外部调用的超时和不确定结果保留 `UNKNOWN` 状态，并通过对账恢复。
+- 提供 RAG evidence、citation、ACL、Agent Run、SSE、MCP/A2A 只读协议和可观测性能力。
+
+## 技术栈与架构
+
+- 后端：Python 3.12、FastAPI、Pydantic、SQLAlchemy、LangGraph、Celery。
+- 前端：Vue 3、TypeScript、Vite、Element Plus、Pinia。
+- 数据与中间件：PostgreSQL、Redis、Milvus、Elasticsearch、MinIO。
+- 模型与可观测性：Qwen、Phoenix、OpenTelemetry。
+- 运行与构建：Docker Compose、pytest、Playwright、npm。
+
+核心调用链如下：
+
+```text
+GitHub webhook
+  -> evidence 固定与幂等校验
+  -> DevMate Case 状态机
+  -> 确定性诊断 / Qwen typed diagnosis
+  -> RepairPlan 与不可变 patch
+  -> Sandbox 验证
+  -> Approval capability
+  -> GitHub 副作用与 UNKNOWN 对账
+```
+
+详细架构见 [企业级 Agent Runtime 架构](docs/architecture/enterprise-agent-runtime-v2.md)，工程决策见 [关键决策记录](docs/DECISIONS.md)。
+
+## 本地启动
+
+后端默认以离线模式启动，不要求数据库、中间件或 API key：
 
 ```powershell
-Set-Location "D:\Code\pythonproject"
-& ".\.venv\Scripts\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[test]"
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Open:
+后端地址为 `http://127.0.0.1:8000`，OpenAPI 页面为 `http://127.0.0.1:8000/docs`。
 
-- API documentation: <http://127.0.0.1:8000/docs>
-- Health: <http://127.0.0.1:8000/health>
-- Optional Vue console: <http://127.0.0.1:5173>
-
-Start the optional frontend in a second terminal:
+另开一个 PowerShell 窗口启动前端：
 
 ```powershell
-Set-Location "D:\Code\pythonproject\frontend"
-npm install
-npm run dev
+npm --prefix frontend install
+npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 ```
 
-### Verify
+前端地址为 `http://127.0.0.1:5173`，Vite 会把 API 请求代理到后端 `8000` 端口。
+
+需要完整中间件时，可先运行：
 
 ```powershell
-Set-Location "D:\Code\pythonproject"
-& ".\.venv\Scripts\python.exe" -m pytest -q
-
-$env:DEVMATE_BASE_URL = "http://127.0.0.1:8000"
-& ".\.venv\Scripts\python.exe" ".\scripts\devmate\live_smoke.py" --component health
-& ".\.venv\Scripts\python.exe" ".\scripts\devmate\live_smoke.py" --component model
+docker compose up -d
+$env:APP_MODE = "full"
+$env:GRAPH_CHECKPOINTER_BACKEND = "postgres"
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-`QWEN_API_KEY` and `QWEN_CHAT_MODEL` are required only for the real model
-smoke. Keep secrets in local environment variables; never commit `.env`.
+`.env.example` 中对应的配置写法是 `GRAPH_CHECKPOINTER_BACKEND=postgres`。checkpoint 只保存执行位置；Event Store 保存不可变审计事实，Projection 负责查询和界面读取，三者不能互相替代。
 
----
+## 主要 API
 
-## Checkpoint、Event Store 与 Projection
-
-- LangGraph checkpoint 只保存执行位置；默认 `GRAPH_CHECKPOINTER_BACKEND=memory`。
-- 跨进程恢复可设置 `GRAPH_CHECKPOINTER_BACKEND=postgres`，并通过 `GRAPH_CHECKPOINTER_POSTGRES_URL` 配置连接。
-- Event Store 保存不可变业务事实，Projection 服务查询和 UI；两者都不能由 checkpoint 替代。
-- PostgreSQL saver 在 FastAPI lifespan 内建表、打开并关闭连接池，单元测试仍不依赖数据库。
-
-The sections below contain the broader EnterpriseMind runtime documentation.
-
-EnterpriseMind 是面向企业内部制度型长流程的 **Agent Runtime 与执行治理平台**。HR Shared Service 是首个 Reference Application，用“新员工入职到转正”的跨天 Case 验证证据检索、计划、人工审批、权限控制、故障恢复、幂等副作用、持久定时器和审计能力。
-
-它不是 HR Chatbot，也不是把 LLM 套在固定 BPM 上：
-
-- RAG 是可信证据层，负责版本化制度、ACL 检索、重排、引用与 evidence freshness。
-- Agent Harness 是执行治理层，负责 Case/Run、PLAN-ACT-OBSERVE-REFLECT-REPAIR、工具风险、审批、checkpoint、side-effect ledger、timer、memory、Skill、protocol 和 safety eval。
-- HR 逻辑只位于 Skill、制度文档、工具 adapter 和评测数据；Runtime 使用通用的 `Case`、`Run`、`Event`、`Approval`、`Tool`、`Timer`、`Memory`、`Skill`、`Artifact` 抽象。
-
-## 为什么这个场景有落地价值
-
-企业入职、转正、调岗、请假和报销有相同的工程难题：制度分散且有版本/适用范围，流程跨 HR、主管、员工和 IT，持续数天或数月，包含 SLA、审批和外部系统写操作，并要求回答“为什么这样执行、引用了什么、谁批准了什么”。
-
-传统 RAG 只能回答“应该怎么办”；传统 workflow 只能执行预编码的固定路径。EnterpriseMind 用 RAG 理解非结构化制度，用 deterministic Harness 约束 Agent 的执行权。
-
-## 标准 Case
-
-1. 创建 `HRCase`，固定 `ExecutionManifest`。
-2. 加载通过评测门禁的 `hr_onboarding` Skill。
-3. 通过只读 A2A Policy Research Agent 研究制度，返回版本化 evidence artifact。
-4. 生成跨 HR、IT、主管和 Harness 的计划。
-5. MCP 写工具准备创建工单，在执行前生成绑定参数、证据版本、policy version 和 manifest hash 的审批。
-6. Case 暂停为 `waiting_approval`，结构化 Context Snapshot 保留治理不变量。
-7. 人工批准后恢复，执行前重新校验授权，SideEffect Ledger 保证 effectively-once。
-8. 写入 episodic memory，并调度可恢复的试用期 `DurableTimer`。
-9. 所有动作形成 append-only Artifact Timeline，可通过 sequence cursor/SSE 断线续读。
-
-## 架构
-
-```mermaid
-flowchart LR
-    UI["Case Operations Console"] --> API["FastAPI Protocol Layer"]
-    API --> HARNESS["Agent Harness"]
-    HARNESS --> ES["Append-only Event Store"]
-    ES --> OUTBOX["Transactional Outbox"]
-    ES --> PROJ["Case Projection"]
-    HARNESS --> RAG["RAG Evidence Layer"]
-    RAG --> DV["DocumentVersion + ACL + Freshness"]
-    HARNESS --> APPROVAL["Approval Governance"]
-    APPROVAL --> LEDGER["SideEffect Ledger"]
-    HARNESS --> TIMER["Durable Timer + Lease"]
-    HARNESS --> MEMORY["Context / Memory / Skill"]
-    HARNESS --> MCP["MCP 2025-11-25 Local HTTP"]
-    HARNESS --> A2A["Read-only Policy Research A2A"]
-    HARNESS --> OTEL["Metrics + OTel / Phoenix"]
-```
-
-完整说明见 [工业化架构文档](docs/architecture/enterprise-agent-runtime-v2.md) 和 [模块 15 规范](docs/modules/15-AgentRuntime长期Case与协议治理.md)。
-
-## 已实现能力
-
-### Runtime Kernel
-
-- Append-only Event Store、单调 sequence、optimistic version、命令幂等和 SHA-256 hash chain。
-- event/outbox 同事务写入；outbox claim、超时回收、ack 和 backlog 指标。
-- PostgreSQL/SQLAlchemy 与 in-memory fake 使用同一 async Protocol。
-- 幂等 Case projection、重启恢复和 projection rebuild。
-- run lease + fencing token、durable timer 单次 claim。
-
-### Execution Governance
-
-- 审批 revision、expiry、revoke、supersede、subject hash、policy/manifest/evidence 绑定。
-- admin maker-checker；审批通过不等于越权，恢复执行前重新授权。
-- SideEffect Ledger 的 reservation/succeeded/unknown 状态与 reconciliation 边界。
-- `ExecutionManifest` 固定 model、prompt、Skill、tool schema、policy、retrieval、context 和 code 版本。
-
-### Context, Memory, Skill
-
-- write/select/compress/isolate 的结构化 Context Snapshot，原始事件永不删除。
-- 未决审批边界与 governance event pinning，压缩前后 invariant hash 校验。
-- tenant-isolated episodic memory、provenance、prompt injection quarantine 和 forget。
-- Skill source allowlist、checksum、eval promotion gate、draft/active/deprecated/revoked 生命周期。
-
-### RAG Evidence
-
-- Markdown/Plain Text/Office fallback 入库、Celery 可选异步执行。
-- SHA-256 稳定 chunk ID、不可变 `DocumentVersion`、active-version 检索过滤。
-- Dense + BM25 + RRF + reranker、ACL 下推、citations 和 evidence freshness。
-- Qwen chat / `text-embedding-v4` / `qwen3-rerank` adapters；无 key 时 deterministic fake。
-
-### Protocol and Safety
-
-- 本地 Streamable HTTP 风格 MCP 2025-11-25：initialize、tools、resources、prompts、structured output。
-- A2A AgentCard、Task、Message、Artifact；Policy Research Agent 独立只读权限域。
-- 真实 trajectory Safety Eval：越权检索、审批绕过、重复副作用、缺失引用。
-- OTel/Phoenix 关联 `case_id/run_id/event_id`；Runtime metrics 暴露审批、协议、projection 和安全零值。
-
-## API
-
-| Endpoint | 用途 |
+| 方法与路径 | 用途 |
 | --- | --- |
-| `POST /cases` | 创建长期 Case |
-| `GET /cases` | Case 运维队列 |
-| `POST /cases/{id}/start` | 启动 HR Reference workflow |
-| `POST /cases/{id}/approvals/{approval_id}` | 审批并恢复 |
-| `POST /cases/{id}/policies/refresh` | 制度更新后重建 evidence/plan/approval |
-| `GET /cases/{id}/events` | sequence cursor 读取 Timeline |
-| `GET /cases/{id}/stream` | 可断线续读 SSE |
-| `POST /mcp` | MCP JSON-RPC |
-| `GET /.well-known/agent-card.json` | A2A AgentCard |
-| `POST /a2a/tasks` | 只读制度研究任务 |
-| `GET /metrics/runtime` | Runtime 工程指标 |
+| `GET /health` | 返回运行模式与依赖健康状态 |
+| `POST /devmate/cases` | 创建 DevMate Case |
+| `POST /devmate/cases/{case_id}/commands` | 通过 typed command 推进 Case 状态 |
+| `GET /devmate/cases/{case_id}/timeline` | 查询可审计状态时间线 |
+| `POST /webhooks/github` | 接收 GitHub CI 失败事件并固定证据 |
+| `POST /documents` | 上传并启动文档入库 |
+| `GET /ingestions/{task_id}` | 查询入库任务状态 |
+| `POST /agent-runs` | 创建 Agent Run |
+| `GET /agent-runs/{run_id}/stream` | 订阅 Agent Run SSE |
+| `POST /cases` | 创建长期 Runtime Case |
+| `GET /cases/{case_id}/stream` | 订阅长期 Case SSE |
+| `POST /eval/runs` | 执行评测 |
+| `POST /eval/safety` | 执行安全评测 |
+| `POST /mcp` | 调用本地 MCP JSON-RPC 入口 |
 
-原有 `/agent-runs`、文档入库、评测、health API 继续保留。
+写接口要求服务端可信身份、稳定 request ID、权限校验和幂等语义；API 层只负责协议适配与服务编排。
 
-## 运行
+## 离线测试
 
-默认 fallback 不需要 Docker、云 key 或外部网络：
-
-```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
-cd frontend
-npm run dev
-```
-
-打开 `http://127.0.0.1:5173`。`/` 是 Case 运维台，`/runs` 是兼容的单轮 Agent Run 实验台。
-
-full mode 使用 PostgreSQL、Redis、Milvus、Elasticsearch、MinIO，并可开启 Qwen、Celery、LangGraph 和 Phoenix：
+运行后端完整离线测试：
 
 ```powershell
-$env:APP_MODE='full'
-.\.venv\Scripts\python.exe -m uvicorn app.main:app
+python -m pytest -q -p no:cacheprovider
 ```
 
-配置项见 `.env.example` 和 `docker-compose.yml`。
-
-## 验证
+运行公开文档契约和 DevMate 定向测试：
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\unit tests\service tests\api -q -p no:cacheprovider --basetemp runtime_pytest_v2
-.\.venv\Scripts\python.exe -m compileall -q app tests scripts
-cd frontend
-.\node_modules\.bin\vue-tsc.cmd -b
-npm run build
-npm run test:e2e
+python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider
+python -m pytest tests/devmate tests/api/devmate -q -p no:cacheprovider
 ```
 
-单元、service 和 API 测试不依赖 Docker、云 key 或外部网络。full-mode integration 需要本地基础设施。
+验证前端类型和生产构建：
 
-## 明确边界
+```powershell
+npm --prefix frontend run build
+```
 
-- 不接真实 HR 系统，不实现工资、考勤或完整 HR SaaS。
-- 不实现完整生产多租户 IAM/RBAC；当前 ACL 是可测试的工程边界。
-- MCP/A2A 是本地标准形态的 reference implementation，未使用官方 SDK 的完整 session/transport 机制。
-- 不引入 Kafka、Temporal、Kubernetes 或 GraphRAG 主链路；这些不是证明 Harness 治理能力的必要条件。
+离线测试使用内存适配器或固定测试数据，不访问真实模型、GitHub 或其他外部服务。
 
-## 面试开场
+## 真实服务验证
 
-> 企业内部很多流程不是简单问答，而是由非结构化制度驱动、跨角色和跨天运行，并包含有副作用的系统操作。普通 RAG 只能回答，普通 workflow 又无法理解制度和处理例外。我实现了一个以 RAG 为证据层、以 Agent Harness 为治理层的企业流程 Agent Runtime，并用员工入职到转正的长期 Case 验证审批、恢复、幂等、记忆、协议和安全评测。
+后端健康检查要求服务已经运行：
 
-## 文档
+```powershell
+$env:DEVMATE_BASE_URL = "http://127.0.0.1:8000"
+python scripts/devmate/live_smoke.py --component health
+```
 
-- `AGENTS.md` / `CLAUDE.md`：开发 agent 入口与当前状态。
-- `项目亮点.md`：简历和面试技术叙事。
-- `开发规划.md`：历史 16 阶段与 Runtime 深化阶段。
-- `docs/CODING_STANDARDS.md`：代码规范。
-- `docs/modules/00-模块规范总览.md`：模块规范入口。
-- `docs/DECISIONS.md`：关键产品与技术决策。
+Qwen 模型验证需要本机环境变量，不要把密钥写入仓库：
+
+```powershell
+$env:QWEN_API_KEY = "你的本地密钥"
+$env:QWEN_CHAT_MODEL = "qwen-plus"
+$env:QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+python scripts/devmate/live_smoke.py --component model
+```
+
+live smoke 的退出码合同：
+
+- 退出码 `0`：真实服务验证通过。
+- 退出码 `1`：真实服务已连接，但验证结果失败。
+- 退出码 `2`：缺少配置、授权或服务不可达，状态为 `blocked`。
+
+`health` 和 `model` 报告独立保存和判断；离线测试通过不能替代真实服务验证。
+
+## 安全与使用边界
+
+- 不读取或提交 `.env`、API key、Cookie、Token、私有日志和本机构建产物。
+- 客户端或模型不能覆盖服务端身份、权限、审批主体和证据版本。
+- 所有写副作用必须绑定审批、幂等键、审计信息和可对账状态。
+- 模型只提供结构化诊断建议，不能绕过状态机、typed parser、Sandbox 或审批链。
+- 单元测试默认禁用网络；真实服务只能通过显式配置和独立 live smoke 启用。
+- PostgreSQL、Redis、Milvus、Elasticsearch、MinIO、GitHub 权限和远端分支保护需要分别验证，未验证项必须保持 `blocked` 或 `unverified`。
+
+## License
+
+本项目采用 Apache License 2.0，完整条款见 [LICENSE](LICENSE)。
