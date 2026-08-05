@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devmate.local/schemas/origin-map.schema.json",
+  "title": "DevMate origin map record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "path",
+    "source_commit",
+    "license_status",
+    "domain",
+    "coupling_tags",
+    "reuse_decision",
+    "evidence_refs"
+  ],
+  "properties": {
+    "path": {"type": "string", "minLength": 1},
+    "source_commit": {"type": "string", "minLength": 1},
+    "license_status": {
+      "type": "string",
+      "enum": ["confirmed", "unknown", "unconfirmed", "conflict", "review"]
+    },
+    "domain": {
+      "type": "string",
+      "enum": ["runtime_kernel", "hr", "rag", "unknown"]
+    },
+    "coupling_tags": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "reuse_decision": {
+      "type": "string",
+      "enum": ["allowed", "isolate", "blocked", "review"]
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"reuse_decision": {"const": "allowed"}}},
+      "then": {"properties": {"evidence_refs": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"license_status": {"enum": ["unknown", "unconfirmed"]}}},
+      "then": {"properties": {"reuse_decision": {"enum": ["blocked", "review"]}}}
+    }
+  ]
+}

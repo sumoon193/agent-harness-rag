@@ -172,6 +172,19 @@ class TestGraphInterrupt:
 
         assert graph is not None
 
+    def test_graph_compiles_with_injected_checkpointer(
+        self,
+        run_manager: AgentRunManager,
+        hybrid_retriever: HybridRetriever,
+    ):
+        """create_agent_graph 使用外部注入的 checkpointer 编译。"""
+        from langgraph.checkpoint.memory import MemorySaver
+
+        saver = MemorySaver()
+        graph = create_agent_graph(run_manager, hybrid_retriever, checkpointer=saver)
+
+        assert graph.checkpointer is saver
+
     @pytest.mark.asyncio
     async def test_graph_interrupts_before_write_tool(
         self,

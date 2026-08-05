@@ -375,3 +375,42 @@ def test_langgraph_agent_run_engine_can_resume_approval(monkeypatch) -> None:
         get_settings.cache_clear()
         reset_container()
         reset_documents_store()
+
+
+def test_demo_run_completes_automatically_when_policy_mode(monkeypatch) -> None:
+    """APPROVAL_MODE=policy 时，demo 链路自动批准写入工具，Run 全程无人值守完成。"""
+    from app.api.documents import reset_documents_store
+    from app.config import get_settings
+
+    monkeypatch.setenv("APP_MODE", "fallback")
+    monkeypatch.setenv("AGENT_RUN_ENGINE", "demo")
+    monkeypatch.setenv("APPROVAL_MODE", "policy")
+    get_settings.cache_clear()
+    reset_container()
+    reset_documents_store()
+
+    try:
+        policy_client = TestClient(create_app())
+        create_resp = policy_client.post(
+            "/agent-runs",
+            json={"query": "帮我创建入职工单", "user_id": "user_001"},
+        )
+        assert create_resp.status_code == 201
+        created = create_resp.json()
+        assert created["status"] == "completed"
+
+        detail_resp = policy_client.get(f"/agent-runs/{created['id']}")
+        assert detail_resp.status_code == 200
+        detail = detail_resp.json()
+        assert detail["result"]["approval_required"] is False
+        assert detail["result"]["tool_result"]["ticket_id"].startswith("TK-")
+
+        # 审批记录仍保留：decided_by=policy_engine，可审计回放
+        approvals = detail["approvals"]
+        assert len(approvals) == 1
+        assert approvals[0]["status"] == "approved"
+        assert approvals[0]["decided_by"] == "policy_engine"
+    finally:
+        get_settings.cache_clear()
+        reset_container()
+        reset_documents_store()

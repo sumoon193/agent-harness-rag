@@ -18,12 +18,21 @@ class Settings(BaseSettings):
     environment: Literal["dev", "test", "prod"] = Field(default="dev")
     app_mode: Literal["fallback", "full"] = Field(default="fallback")
     agent_run_engine: Literal["demo", "langgraph"] = Field(default="demo")
+    # 审批模式：manual 全部转人工（默认，等价原流程）；policy 写入型自动、管理级人工；
+    # auto 写入型自动，管理级是否自动由 approval_auto_allow_admin 决定（沙箱用）。
+    approval_mode: Literal["manual", "policy", "auto"] = Field(default="manual")
+    approval_auto_allow_admin: bool = Field(default=False)
     local_storage_dir: str = Field(default="runtime_storage")
 
     postgres_url: str = Field(
         default="postgresql://enterprisemind:change_me_local@localhost:5432/enterprisemind"
     )
     redis_url: str = Field(default="redis://localhost:6379/0")
+
+    # LangGraph checkpointer：memory（默认，进程内）或 postgres（持久化，
+    # 跨天审批流程在进程重启后仍可 resume）。postgres 连接串为空时回退 postgres_url。
+    graph_checkpointer_backend: Literal["memory", "postgres"] = Field(default="memory")
+    graph_checkpointer_postgres_url: str = Field(default="")
 
     milvus_host: str = Field(default="localhost")
     milvus_port: int = Field(default=19530)
