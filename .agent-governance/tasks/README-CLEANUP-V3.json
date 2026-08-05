@@ -1,0 +1,20 @@
+{
+  "task_id": "README-CLEANUP-V3",
+  "project_id": "devmate",
+  "dependencies": ["README-CLEANUP-V2"],
+  "goal": "完成全量公开 Markdown 清理并修复跨平台任务命令拆分",
+  "priority": "high",
+  "owner_model": "implementation-agent",
+  "reviewer": "primary-integrator",
+  "branch": "codex/devmate/readme-cleanup-v3",
+  "base_ref": "codex/devmate/readme-cleanup-v2",
+  "base_sha": "d499f7eeb3c18bf4eca6b853b129d1cc5375615f",
+  "max_changed_files": 20,
+  "max_diff_lines": 3000,
+  "scope": {"allowed_paths": ["frontend/README.md", "demo_docs/**", "tests/governance/**", "tools/governance/run.py"], "allowed_create_paths": ["tests/governance/**"], "allowed_delete_paths": ["frontend/README.md"], "read_only_paths": ["README.md", "LICENSE", "app/**", "scripts/**", "docs/**", "开发规划.md"], "read_denylist": [".env", "app/runtime/**"], "write_denylist": [".env", "app/runtime/**"]},
+  "capabilities": {"network": "disabled", "external_services": [], "docker": "disabled", "dependency_changes": false, "public_api_changes": false, "database_changes": false, "runtime_kernel_changes": false, "approval_flow_changes": false},
+  "behavior": {"observable_result": "所有受管已跟踪 Markdown 都符合工程资料边界，Windows 反斜杠和带空格命令可安全执行", "inputs": ["README-CLEANUP-V2 代码质量审查结果"], "outputs": ["全量 Markdown 扫描", "重复模板 README 删除", "badcase 工程说明", "跨平台命令拆分", "历史更正说明"], "states": ["red-observed", "final-cleanup-fixed", "regression-passed", "handoff-ready"], "invariants": ["不修改历史 task/handoff", "V3 handoff 说明 V1 当时 blocked 并由 V2/V3 闭环", "仅保留工程实施、验证和运维资料"], "failure_modes": ["受管 Markdown 漏扫", "Windows 路径反斜杠丢失", "重复 README 或旧话术残留"], "non_goals": ["修改生产行为", "读取或提交密钥", "merge、rebase 或 force-push"]},
+  "tdd": {"red_test_files": ["tests/governance/test_public_documentation_contract.py"], "red_command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider", "expected_red_exit_code": 1, "expected_red_reason": "frontend 与 demo_docs 未被扫描，Windows POSIX shlex 会破坏反斜杠路径", "implementation_boundary": "仅修复公开 Markdown 扫描、重复 README、badcase 工程说明和治理命令拆分", "green_command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider", "regression_commands": ["python -m pytest -q -p no:cacheprovider", "npm --prefix frontend run build"]},
+  "security": {"secret_policy": "no-secret-content", "subprocess_policy": "argv-only", "path_policy": "repository-relative", "log_redaction": "required", "read_denylist": [".env", "app/runtime/**"], "write_denylist": [".env", "app/runtime/**"]},
+  "delivery": {"commit_required": true, "push_allowed": true, "merge_allowed": false, "force_push_allowed": false, "handoff_file": ".agent-governance/handoffs/README-CLEANUP-V3.json", "learner_confirmation_required": false}
+}
