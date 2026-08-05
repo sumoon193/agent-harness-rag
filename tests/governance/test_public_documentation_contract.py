@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import ast
 import re
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[2]
