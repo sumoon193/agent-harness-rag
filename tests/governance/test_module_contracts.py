@@ -30,5 +30,5 @@ def test_module_contract_is_complete_and_acyclic():
 def test_cross_module_invariants_cover_security_recovery_and_evidence():
     contract = json.loads((ROOT / ".agent-governance" / "module-contracts.json").read_text(encoding="utf-8"))
     combined = "\n".join(contract["cross_module_invariants"])
-    for term in ("身份", "副作用", "状态", "Fake", "citation", "学习"):
+    for term in ("身份", "副作用", "状态", "Fake", "citation", "工程实施、验证和运维"):
         assert term in combined
