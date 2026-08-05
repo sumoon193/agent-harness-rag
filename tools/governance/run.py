@@ -11,6 +11,43 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
 
+
+def _strip_paired_quotes(token):
+    if len(token) >= 2 and token[0] == token[-1] and token[0] in {'"', "'"}:
+        return token[1:-1]
+    return token
+
+
+def _split_command(command):
+    if not command or not command.strip():
+        blocked("task command is empty")
+    if os.name == "nt":
+        arguments = [
+            _strip_paired_quotes(token)
+            for token in shlex.split(command, posix=False)
+        ]
+    else:
+        arguments = shlex.split(command, posix=True)
+    if not arguments:
+        blocked("task command is empty")
+    return arguments
+
+
+def _resolve_command(arguments):
+    resolved = list(arguments)
+    if not resolved:
+        return resolved
+    if resolved[0] in {"python", "python3"}:
+        resolved[0] = sys.executable
+
+    executable = shutil.which(resolved[0])
+    if executable is None and os.name == "nt" and not resolved[0].lower().endswith(".cmd"):
+        executable = shutil.which(resolved[0] + ".cmd")
+    if executable is not None:
+        resolved[0] = executable
+    return resolved
+
+
 def blocked(message):
     raise SystemExit("blocked: " + message)
 
@@ -179,9 +216,7 @@ elif args.gate in {"focused-tests", "regression"}:
     if not commands:
         blocked(field + " missing")
     for command in commands:
-        arguments = shlex.split(command)
-        if arguments and arguments[0] in {"python", "python3"}:
-            arguments[0] = sys.executable
+        arguments = _resolve_command(_split_command(command))
         result = subprocess.run(arguments, cwd=root)
         if result.returncode != 0:
             blocked(args.gate + " failed")
