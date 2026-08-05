@@ -1,0 +1,20 @@
+{
+  "task_id": "INTEGRATION",
+  "project_id": "devmate",
+  "branch": "codex/devmate/integration",
+  "dependencies": ["DM-14"],
+  "priority": "high",
+  "owner_model": "primary-integrator",
+  "reviewer": "primary-integrator",
+  "base_ref": "main",
+  "base_sha": "1ae0526fa175e3a5a8641fe325575f33c896165f",
+  "goal": "Integrate all DevMate modules, mount the API, and verify real adapters without silent Fake fallback.",
+  "max_changed_files": 1000,
+  "max_diff_lines": 100000,
+  "scope": {"allowed_paths": ["app/**", "tests/**", "scripts/**", "docs/**", "migrations/**", "pyproject.toml"], "allowed_create_paths": ["app/**", "tests/**", "scripts/**", "docs/**", "migrations/**"], "allowed_delete_paths": [], "read_only_paths": ["AGENTS.md", ".agent-governance/**", "LICENSE"], "read_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"], "write_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"]},
+  "behavior": {"observable_result": "DevMate API and model execution are traceable and never silently pass as Fake.", "failure_modes": ["invalid input", "provider unavailable", "authorization conflict"], "non_goals": ["merge or force-push", "secret material", "learning documents"]},
+  "capabilities": {"approval_flow_changes": true, "database_changes": false, "dependency_changes": false, "docker": "disabled", "external_services": ["model", "github", "sandbox"], "network": "live-smoke-only", "public_api_changes": true, "runtime_kernel_changes": true},
+  "delivery": {"commit_required": true, "merge_allowed": false, "force_push_allowed": false, "push_allowed": true, "handoff_file": ".agent-governance/handoffs/INTEGRATION.json"},
+  "security": {"secret_policy": "no-secret-content", "read_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"], "write_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"]},
+  "tdd": {"red_command": "python -m pytest tests/devmate/models/test_dm_07.py -q", "red_test_files": ["tests/devmate/models/test_dm_07.py"], "expected_red_reason": "real mode and API integration contract were incomplete", "green_command": "python -m pytest tests/devmate tests/audit -q", "regression_commands": ["python -m pytest -q"]}
+}
