@@ -1,0 +1,65 @@
+{
+  "task_id": "README-CLEANUP-V1",
+  "project_id": "devmate",
+  "branch": "codex/devmate/readme-cleanup-v1",
+  "base_sha": "0575048807e06d1d7e36a9ff6ce02a18066cae77",
+  "commit_sha": "73c865cde65258c66481fb811786b0bcc2ef978c",
+  "red": {
+    "command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider",
+    "result": "5 failed, 1 passed；失败来自旧 README 结构、缺失真实契约、展示资料仍存在、旧 README 仍受保护以及当前治理措辞未迁移"
+  },
+  "green": {
+    "command": "python -m pytest tests/governance/test_public_documentation_contract.py tests/governance/test_module_contracts.py -q -p no:cacheprovider",
+    "result": "8 passed"
+  },
+  "regression": {
+    "commands": [
+      ".\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider",
+      "npm --prefix frontend run build"
+    ],
+    "result": "后端 523 passed、11 deselected、1 个 Starlette 依赖弃用警告；前端 Vue/Vite 生产构建通过，保留第三方 pure annotation 与大 chunk 警告"
+  },
+  "governance": {
+    "passed": [
+      "manifest",
+      "task-packet",
+      "branch-policy",
+      "scope",
+      "test-integrity",
+      "secrets",
+      "focused-tests"
+    ],
+    "blocked": [
+      "regression runner 在 Windows 使用 subprocess argv 调用 npm 时未解析 npm.cmd，pytest 已通过后报 WinError 2；相同前端构建命令已单独执行通过"
+    ]
+  },
+  "files": [
+    ".agent-governance/AGENT-ENTRY.md",
+    ".agent-governance/implementation-plan.md",
+    ".agent-governance/manifest.json",
+    ".agent-governance/module-contracts.json",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "RAG项目面试亮点.md",
+    "README-DEVMATE.md",
+    "README.md",
+    "docs/DECISIONS.md",
+    "docs/agent-harness-deepening/04-artifact-timeline.md",
+    "docs/agent-harness-deepening/05-metrics-and-resume-evidence.md",
+    "docs/evidence/landing-narrative-design.md",
+    "docs/modules/11-前端控制台.md",
+    "docs/superpowers/plans/2026-07-26-python-handoff-closure.md",
+    "docs/superpowers/specs/2026-07-26-python-handoff-closure-design.md",
+    "docs/面试高频问答与话术.md",
+    "tests/governance/test_module_contracts.py",
+    "tests/governance/test_public_documentation_contract.py",
+    "项目亮点.md"
+  ],
+  "unrun": [],
+  "risks": [
+    "根目录 开发规划.md 仍有两处旧展示措辞，但不在当前不可变任务包写白名单内，必须由独立正式任务处理",
+    "中央治理 runner 需要统一修复 Windows npm.cmd 解析后，才能让聚合 regression gate 本身返回 passed",
+    "前端构建仍报告第三方 @vueuse/core pure annotation 与 chunk size 警告，不影响本次构建退出码"
+  ],
+  "status": "complete"
+}
