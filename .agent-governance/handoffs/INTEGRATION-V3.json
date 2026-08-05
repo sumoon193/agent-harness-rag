@@ -10,7 +10,7 @@
   },
   "green": {
     "command": "python -m pytest -q",
-    "result": "515 passed, 11 live tests deselected, 1 dependency warning"
+    "result": "516 passed, 11 live tests deselected, 1 dependency warning"
   },
   "regression": {
     "command": "npm run build",
