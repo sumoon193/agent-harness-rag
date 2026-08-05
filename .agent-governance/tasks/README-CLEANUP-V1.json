@@ -1,0 +1,20 @@
+{
+  "task_id": "README-CLEANUP-V1",
+  "project_id": "devmate",
+  "dependencies": ["INTEGRATION"],
+  "goal": "重写中文 README，清理公开展示资料并迁移旧 README 保护配置",
+  "priority": "high",
+  "owner_model": "implementation-agent",
+  "reviewer": "primary-integrator",
+  "branch": "codex/devmate/readme-cleanup-v1",
+  "base_ref": "codex/devmate/integration-v5",
+  "base_sha": "0575048807e06d1d7e36a9ff6ce02a18066cae77",
+  "max_changed_files": 80,
+  "max_diff_lines": 20000,
+  "scope": {"allowed_paths": ["README.md", "README-DEVMATE.md", "RAG项目面试亮点.md", "项目亮点.md", "AGENTS.md", "CLAUDE.md", "docs/**", "tests/governance/**"], "allowed_create_paths": ["README.md", "docs/**", "tests/governance/**"], "allowed_delete_paths": ["README-DEVMATE.md", "RAG项目面试亮点.md", "项目亮点.md", "docs/面试高频问答与话术.md", "docs/agent-harness-deepening/05-metrics-and-resume-evidence.md", "docs/evidence/landing-narrative-design.md", "docs/superpowers/plans/2026-07-26-python-handoff-closure.md", "docs/superpowers/specs/2026-07-26-python-handoff-closure-design.md"], "read_only_paths": ["LICENSE", "app/**", "frontend/**", "scripts/**"], "read_denylist": [".env", "app/runtime/**"], "write_denylist": [".env", "app/runtime/**"]},
+  "capabilities": {"network": "disabled", "external_services": [], "docker": "disabled", "dependency_changes": false, "public_api_changes": false, "database_changes": false, "runtime_kernel_changes": false, "approval_flow_changes": false},
+  "behavior": {"observable_result": "公开 README 为简体中文工程说明，展示型材料移除，技术文档与不可变历史证据保留", "inputs": ["当前已全绿集成分支", "代码中的启动命令、API、环境变量和 live-smoke 合同"], "outputs": ["中文 README", "公开资料契约测试", "工程化治理说明"], "states": ["red-observed", "documentation-cleaned", "regression-passed", "handoff-ready"], "invariants": ["先解除 README-DEVMATE.md 保护再删除", "不修改历史任务包和交接记录", "仅保留工程实施、验证和运维资料"], "failure_modes": ["README 结构或编码不合格", "命令与代码不一致", "保留失效链接或展示资料"], "non_goals": ["修改生产行为", "读取或提交密钥", "merge、rebase 或 force-push"]},
+  "tdd": {"red_test_files": ["tests/governance/test_public_documentation_contract.py"], "red_command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider", "expected_red_exit_code": 1, "expected_red_reason": "现有 README 结构、语言和公开资料集合不符合新合同", "implementation_boundary": "仅调整 README、公开工程文档、当前可变治理副本和对应测试", "green_command": "python -m pytest tests/governance/test_public_documentation_contract.py -q -p no:cacheprovider", "regression_commands": ["python -m pytest -q -p no:cacheprovider", "npm --prefix frontend run build"]},
+  "security": {"secret_policy": "no-secret-content", "subprocess_policy": "argv-only", "path_policy": "repository-relative", "log_redaction": "required", "read_denylist": [".env", "app/runtime/**"], "write_denylist": [".env", "app/runtime/**"]},
+  "delivery": {"commit_required": true, "push_allowed": true, "merge_allowed": false, "force_push_allowed": false, "handoff_file": ".agent-governance/handoffs/README-CLEANUP-V1.json", "learner_confirmation_required": false}
+}
