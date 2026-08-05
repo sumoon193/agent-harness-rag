@@ -1,0 +1,56 @@
+{
+  "task_id": "INTEGRATION-V3",
+  "project_id": "devmate",
+  "branch": "codex/devmate/integration-v3",
+  "dependencies": ["DM-14"],
+  "priority": "high",
+  "owner_model": "primary-integrator",
+  "reviewer": "primary-integrator",
+  "base_ref": "main",
+  "base_sha": "1bea64ac7c63b24fb8578778a26366e52a35f4f8",
+  "goal": "Integrate DevMate on the current main branch without merge commits while preserving the verified pre-integration runtime foundation.",
+  "max_changed_files": 1000,
+  "max_diff_lines": 100000,
+  "scope": {
+    "allowed_paths": ["app/**", "tests/**", "scripts/**", "docs/**", "migrations/**", "README.md", "pyproject.toml", ".gitignore"],
+    "allowed_create_paths": ["app/**", "tests/**", "scripts/**", "docs/**", "migrations/**"],
+    "allowed_delete_paths": [],
+    "read_only_paths": ["AGENTS.md", ".agent-governance/**", "LICENSE"],
+    "read_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"],
+    "write_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"]
+  },
+  "behavior": {
+    "observable_result": "DevMate API and model execution are traceable, conflict-free, and never silently pass as Fake.",
+    "failure_modes": ["invalid input", "provider unavailable", "authorization conflict", "governance branch resolution failure"],
+    "non_goals": ["merge or force-push", "secret material", "learning documents"]
+  },
+  "capabilities": {
+    "approval_flow_changes": true,
+    "database_changes": false,
+    "dependency_changes": true,
+    "docker": "disabled",
+    "external_services": ["model", "github", "sandbox"],
+    "network": "live-smoke-only",
+    "public_api_changes": true,
+    "runtime_kernel_changes": true
+  },
+  "delivery": {
+    "commit_required": true,
+    "merge_allowed": false,
+    "force_push_allowed": false,
+    "push_allowed": true,
+    "handoff_file": ".agent-governance/handoffs/INTEGRATION-V3.json"
+  },
+  "security": {
+    "secret_policy": "no-secret-content",
+    "read_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"],
+    "write_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"]
+  },
+  "tdd": {
+    "red_command": "python -m pytest tests/governance/test_governance_contract.py -q",
+    "red_test_files": ["tests/governance/test_governance_contract.py"],
+    "expected_red_reason": "push events used a detached HEAD without GITHUB_REF_NAME fallback and editable packaging used ambiguous discovery",
+    "green_command": "python -m pytest tests/devmate tests/governance -q",
+    "regression_commands": ["python -m pytest -q"]
+  }
+}

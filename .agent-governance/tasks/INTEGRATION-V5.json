@@ -1,0 +1,56 @@
+{
+  "task_id": "INTEGRATION-V5",
+  "project_id": "devmate",
+  "branch": "codex/devmate/integration-v5",
+  "dependencies": ["INTEGRATION-V3"],
+  "priority": "high",
+  "owner_model": "primary-integrator",
+  "reviewer": "primary-integrator",
+  "base_ref": "codex/devmate/integration-v3",
+  "base_sha": "89b7f5840b2d1c5f91c5956f5bd810c7c9177100",
+  "goal": "Make the verified DevMate integration reproducible in GitHub Actions by installing its declared test dependencies.",
+  "max_changed_files": 8,
+  "max_diff_lines": 300,
+  "scope": {
+    "allowed_paths": [".github/workflows/governance.yml", "pyproject.toml", "tests/governance/**"],
+    "allowed_create_paths": [],
+    "allowed_delete_paths": [],
+    "read_only_paths": ["AGENTS.md", ".agent-governance/**", "LICENSE"],
+    "read_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"],
+    "write_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"]
+  },
+  "behavior": {
+    "observable_result": "GitHub governance installs the same declared test runtime required by the full offline suite.",
+    "failure_modes": ["missing test dependency", "dependency installation failure", "governance regression failure"],
+    "non_goals": ["application behavior changes", "merge or force-push", "secret material", "learning documents"]
+  },
+  "capabilities": {
+    "approval_flow_changes": false,
+    "database_changes": false,
+    "dependency_changes": true,
+    "docker": "disabled",
+    "external_services": [],
+    "network": "dependency-install-only",
+    "public_api_changes": false,
+    "runtime_kernel_changes": false
+  },
+  "delivery": {
+    "commit_required": true,
+    "merge_allowed": false,
+    "force_push_allowed": false,
+    "push_allowed": true,
+    "handoff_file": ".agent-governance/handoffs/INTEGRATION-V5.json"
+  },
+  "security": {
+    "secret_policy": "no-secret-content",
+    "read_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"],
+    "write_denylist": [".env", "README-DEVMATE.md", "app/runtime/**"]
+  },
+  "tdd": {
+    "red_command": "python -m pytest tests/governance/test_governance_contract.py -q",
+    "red_test_files": ["tests/governance/test_governance_contract.py"],
+    "expected_red_reason": "GitHub Actions installs the runtime package but omits pytest-asyncio required during collection",
+    "green_command": "python -m pytest tests/governance/test_governance_contract.py -q",
+    "regression_commands": ["python -m pytest -q"]
+  }
+}

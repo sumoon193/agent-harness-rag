@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "pythonproject"
 version = "0.1.0"
@@ -30,11 +34,18 @@ dependencies = [
     "aiosqlite>=0.22.1",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=6.0",
     "pytest>=9.0.3",
+    "vulture>=2.14",
 ]
 
 [tool.pytest.ini_options]
@@ -49,6 +60,10 @@ markers = [
 addopts = [
     "-m", "not integration and not e2e",
 ]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["frontend*", "demo_docs*", "migrations*", "tests*", "scripts*"]
 
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"

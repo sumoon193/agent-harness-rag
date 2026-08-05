@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import approvals, agent_runs, cases, documents, eval_runs, health, protocols
+from app.api.devmate import router as devmate_router, webhook_router as devmate_webhook_router
 from app.api.errors import app_error_handler, generic_error_handler
 from app.config import get_settings
 from app.core.exceptions import AppError
@@ -43,12 +44,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await init_db()
         logger.info("full_mode_initialized")
 
-    yield
+    checkpointer_manager = None
+    if settings.graph_checkpointer_backend == "postgres":
+        from app.api.dependencies import get_container
 
-    if settings.app_mode == "full":
-        from app.db.session import close_db
-        await close_db()
-        logger.info("full_mode_shutdown")
+        checkpointer_manager = get_container().graph_checkpointer
+        await checkpointer_manager.setup()
+        logger.info("graph_checkpointer_initialized")
+
+    try:
+        yield
+    finally:
+        if checkpointer_manager is not None:
+            await checkpointer_manager.teardown()
+            logger.info("graph_checkpointer_shutdown")
+
+        if settings.app_mode == "full":
+            from app.db.session import close_db
+
+            await close_db()
+            logger.info("full_mode_shutdown")
 
 
 def create_app() -> FastAPI:
@@ -82,6 +97,8 @@ def create_app() -> FastAPI:
     app.include_router(eval_runs.router)
     app.include_router(cases.router)
     app.include_router(protocols.router)
+    app.include_router(devmate_router)
+    app.include_router(devmate_webhook_router)
 
     return app
 

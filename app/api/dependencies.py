@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.schemas.enums import ToolRiskLevel
 from app.schemas.tool import ToolDefinition
 from app.services.agent.approval_manager import ApprovalManager
+from app.services.agent.approval_policy import build_approval_policy
 from app.services.agent.artifact_timeline import ArtifactTimelineBuilder
 from app.services.agent.run_manager import AgentRunManager
 from app.services.agent.step_logger import StepLogger
@@ -184,6 +185,10 @@ class ServiceContainer:
         self.step_logger = StepLogger()
         self.timeline_builder = ArtifactTimelineBuilder()
         self.approval_manager = ApprovalManager(step_logger=self.step_logger)
+        self.approval_policy = build_approval_policy(
+            settings.approval_mode,
+            allow_admin=settings.approval_auto_allow_admin,
+        )
         self.tool_registry = _build_tool_registry()
         self.acl_validator = ACLValidator()
         self._init_runtime_services()
@@ -223,6 +228,7 @@ class ServiceContainer:
             tool_executor=self.tool_executor,
             approval_manager=self.approval_manager,
             step_logger=self.step_logger,
+            approval_policy=self.approval_policy,
         )
         self.answer_service = GroundedAnswerService(
             answer_generator=self.answer_generator,
@@ -295,6 +301,7 @@ class ServiceContainer:
             approval_manager=self.approval_manager,
             step_logger=self.step_logger,
             session_factory=session_factory,
+            approval_policy=self.approval_policy,
         )
 
         self.answer_service = GroundedAnswerService(answer_generator=self.answer_generator)
@@ -306,13 +313,18 @@ class ServiceContainer:
 
     def _init_graph_runner(self) -> None:
         """构建 LangGraph Runner，供可选真实编排入口使用。"""
+        from app.services.graph.checkpointer import create_checkpointer_manager
         from app.services.graph.graph import create_agent_graph
         from app.services.graph.runner import GraphRunner
 
+        # checkpointer 后端由 settings 决定；postgres 后端的连接池
+        # 生命周期挂在 FastAPI lifespan 上（见 app/main.py）。
+        self.graph_checkpointer = create_checkpointer_manager(self.settings)
         compiled_graph = create_agent_graph(
             run_manager=self.run_manager,
             hybrid_retriever=self.hybrid_retriever,
             answer_service=self.answer_service,
+            checkpointer=self.graph_checkpointer.checkpointer,
         )
         self.graph_runner = GraphRunner(
             graph=compiled_graph,

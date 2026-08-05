@@ -311,9 +311,27 @@ async def approval_gate_node(
         evidence=state.get("evidence")
     )
 
-    logger.info("approval_required", extra={"run_id": run_id, "tool_name": tool_name})
-    decision_payload = interrupt(payload)
-    approval_decision = ApprovalDecision.model_validate(decision_payload)
+    # 策略化自动审批：仅对本次新建的审批生效；resume 恢复路径（existing_approval
+    # 非空）始终走 interrupt 接收人工决策，避免策略覆盖人工提交的审批结果。
+    auto_decision = (
+        None
+        if existing_approval is not None
+        else run_manager.maybe_auto_approve(
+            run_id=run_id,
+            approval_id=approval_id,
+            user_context=user,
+        )
+    )
+    if auto_decision is not None:
+        logger.info(
+            "approval_auto_approved",
+            extra={"run_id": run_id, "approval_id": approval_id, "tool_name": tool_name},
+        )
+        approval_decision = auto_decision
+    else:
+        logger.info("approval_required", extra={"run_id": run_id, "tool_name": tool_name})
+        decision_payload = interrupt(payload)
+        approval_decision = ApprovalDecision.model_validate(decision_payload)
 
     return {
         "pending_tool_call": tool_call,

@@ -14,8 +14,9 @@ from app.core.health import INFRA_SERVICES, check_infrastructure_health
 from app.main import create_app
 
 
-def test_settings_loads_test_mode_defaults() -> None:
+def test_settings_loads_test_mode_defaults(monkeypatch) -> None:
     """Settings 默认使用 fallback，不访问真实服务。"""
+    monkeypatch.delenv("QWEN_CHAT_MODEL", raising=False)
     settings = Settings(_env_file=None)
 
     assert settings.environment == "dev"
