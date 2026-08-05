@@ -13,6 +13,27 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[2]
 
 
+def _strip_paired_quotes(token):
+    if len(token) >= 2 and token[0] == token[-1] and token[0] in {'"', "'"}:
+        return token[1:-1]
+    return token
+
+
+def _split_command(command):
+    if not command or not command.strip():
+        blocked("task command is empty")
+    if os.name == "nt":
+        arguments = [
+            _strip_paired_quotes(token)
+            for token in shlex.split(command, posix=False)
+        ]
+    else:
+        arguments = shlex.split(command, posix=True)
+    if not arguments:
+        blocked("task command is empty")
+    return arguments
+
+
 def _resolve_command(arguments):
     resolved = list(arguments)
     if not resolved:
@@ -196,7 +217,7 @@ elif args.gate in {"focused-tests", "regression"}:
     if not commands:
         blocked(field + " missing")
     for command in commands:
-        arguments = _resolve_command(shlex.split(command))
+        arguments = _resolve_command(_split_command(command))
         result = subprocess.run(arguments, cwd=root)
         if result.returncode != 0:
             blocked(args.gate + " failed")

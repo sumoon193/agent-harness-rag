@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import json
 import re
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -52,15 +53,24 @@ def _read_utf8(path: Path) -> str:
 
 
 def _public_markdown_files() -> list[Path]:
-    files = list(ROOT.glob("*.md"))
-    files.extend(
+    result = subprocess.run(
         [
-            ROOT / ".agent-governance" / "AGENT-ENTRY.md",
-            ROOT / ".agent-governance" / "implementation-plan.md",
-        ]
+            "git",
+            "ls-files",
+            "-z",
+            "--",
+            "*.md",
+            ":(exclude)_archive/**",
+            ":(exclude).agent-governance/tasks/**",
+            ":(exclude).agent-governance/handoffs/**",
+            ":(exclude)tests/fixtures/**",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
     )
-    files.extend((ROOT / "docs").rglob("*.md"))
-    return sorted({path for path in files if path.is_file()})
+    paths = result.stdout.decode("utf-8").split("\0")
+    return [ROOT / path for path in paths if path and (ROOT / path).is_file()]
 
 
 def test_readme_uses_exact_chinese_engineering_structure() -> None:
@@ -145,6 +155,23 @@ def test_public_engineering_documents_exclude_presentation_language() -> None:
     assert not violations, "公开工程文档仍有展示型措辞：\n" + "\n".join(violations)
 
 
+def test_public_markdown_inventory_covers_nested_engineering_documents() -> None:
+    relative_paths = {
+        path.relative_to(ROOT).as_posix() for path in _public_markdown_files()
+    }
+
+    assert "demo_docs/badcases/README.md" in relative_paths
+    assert "frontend/README.md" not in relative_paths, "重复的前端模板 README 应删除"
+    assert not any(path.startswith("_archive/") for path in relative_paths)
+    assert not any(
+        path.startswith(".agent-governance/tasks/") for path in relative_paths
+    )
+    assert not any(
+        path.startswith(".agent-governance/handoffs/") for path in relative_paths
+    )
+    assert not any(path.startswith("tests/fixtures/") for path in relative_paths)
+
+
 def test_public_markdown_does_not_reference_removed_presentation_files() -> None:
     violations: list[str] = []
     removed_names = {
@@ -177,19 +204,59 @@ def test_development_plan_uses_engineering_language_only() -> None:
         assert term not in text, f"开发规划仍有展示型措辞：{term}"
 
 
-def test_governance_runner_resolves_windows_npm_cmd() -> None:
+def _load_runner_command_functions(platform_name: str, which):
     source = _read_utf8(ROOT / "tools" / "governance" / "run.py")
     tree = ast.parse(source)
-    resolver = next(
-        (
-            node
-            for node in tree.body
-            if isinstance(node, ast.FunctionDef) and node.name == "_resolve_command"
-        ),
-        None,
-    )
-    assert resolver is not None, "治理运行器缺少可测试的命令解析函数"
+    names = {"_strip_paired_quotes", "_split_command", "_resolve_command"}
+    functions = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name in names
+    ]
+    assert {node.name for node in functions} == names, "治理运行器缺少命令解析函数"
 
+    def blocked(message: str) -> None:
+        raise SystemExit("blocked: " + message)
+
+    namespace = {
+        "os": SimpleNamespace(name=platform_name),
+        "shlex": __import__("shlex"),
+        "shutil": SimpleNamespace(which=which),
+        "sys": SimpleNamespace(executable=r"D:\py\python.exe"),
+        "blocked": blocked,
+    }
+    isolated_module = ast.Module(body=functions, type_ignores=[])
+    ast.fix_missing_locations(isolated_module)
+    exec(compile(isolated_module, "tools/governance/run.py", "exec"), namespace)
+    return namespace
+
+
+def test_governance_runner_preserves_windows_relative_venv_path() -> None:
+    namespace = _load_runner_command_functions("nt", lambda command: None)
+
+    arguments = namespace["_split_command"](
+        r".\.venv\Scripts\python.exe -m pytest tests\governance"
+    )
+
+    assert arguments == [
+        r".\.venv\Scripts\python.exe",
+        "-m",
+        "pytest",
+        r"tests\governance",
+    ]
+
+
+def test_governance_runner_preserves_quoted_windows_path_with_spaces() -> None:
+    namespace = _load_runner_command_functions("nt", lambda command: None)
+
+    arguments = namespace["_split_command"](
+        r'"D:\Code Space\.venv\Scripts\python.exe" -m pytest'
+    )
+
+    assert arguments == [r"D:\Code Space\.venv\Scripts\python.exe", "-m", "pytest"]
+
+
+def test_governance_runner_resolves_windows_npm_cmd() -> None:
     calls: list[str] = []
 
     def which(command: str) -> str | None:
@@ -198,16 +265,11 @@ def test_governance_runner_resolves_windows_npm_cmd() -> None:
             return r"C:\Program Files\nodejs\npm.cmd"
         return None
 
-    namespace = {
-        "os": SimpleNamespace(name="nt"),
-        "shutil": SimpleNamespace(which=which),
-        "sys": SimpleNamespace(executable=r"D:\py\python.exe"),
-    }
-    isolated_module = ast.Module(body=[resolver], type_ignores=[])
-    ast.fix_missing_locations(isolated_module)
-    exec(compile(isolated_module, "tools/governance/run.py", "exec"), namespace)
+    namespace = _load_runner_command_functions("nt", which)
 
-    arguments = namespace["_resolve_command"](["npm", "--prefix", "frontend"])
+    arguments = namespace["_resolve_command"](
+        namespace["_split_command"]("npm --prefix frontend")
+    )
 
     assert arguments == [
         r"C:\Program Files\nodejs\npm.cmd",
@@ -215,6 +277,32 @@ def test_governance_runner_resolves_windows_npm_cmd() -> None:
         "frontend",
     ]
     assert calls == ["npm", "npm.cmd"]
+
+
+def test_governance_runner_uses_posix_tokens_on_linux() -> None:
+    namespace = _load_runner_command_functions("posix", lambda command: None)
+
+    arguments = namespace["_split_command"](
+        'python -m pytest "tests/path with space/test_contract.py"'
+    )
+
+    assert arguments == [
+        "python",
+        "-m",
+        "pytest",
+        "tests/path with space/test_contract.py",
+    ]
+
+
+def test_governance_runner_blocks_empty_command() -> None:
+    namespace = _load_runner_command_functions("nt", lambda command: None)
+
+    try:
+        namespace["_split_command"]("   ")
+    except SystemExit as error:
+        assert str(error) == "blocked: task command is empty"
+    else:
+        raise AssertionError("空命令必须明确 blocked")
 
 
 def test_mutable_governance_uses_engineering_materials_rule() -> None:
