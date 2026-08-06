@@ -3,6 +3,7 @@
 
 默认 fallback mode 不访问真实外部服务；full mode 只在健康检查中探测连接状态。
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -57,6 +58,8 @@ class Settings(BaseSettings):
     qwen_api_base_url: str = Field(default="https://dashscope.aliyuncs.com/compatible-mode/v1")
     qwen_rerank_base_url: str = Field(default="https://dashscope.aliyuncs.com/compatible-api/v1")
     qwen_timeout_seconds: float = Field(default=30.0)
+    ragas_timeout_seconds: float = Field(default=300.0)
+    ragas_language: str = Field(default="chinese")
     embedding_dim: int = Field(default=1024)
     embedding_batch_size: int = Field(default=10)
 

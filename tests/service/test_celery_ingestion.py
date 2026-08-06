@@ -1,7 +1,8 @@
 """Celery 文档入库调度测试。"""
+
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -35,10 +36,12 @@ def _content() -> bytes:
         "新员工入职当天需提交身份证明、学历证明、离职证明，并签署劳动合同。\n\n"
         "## 转正流程\n\n"
         "试用期满前五个工作日，员工提交转正申请，主管完成评估，HR 归档。"
-    ).encode("utf-8")
+    ).encode()
 
 
-def _pipeline_factory(vector_store: InMemoryVectorStore | None = None) -> Callable[[], IngestionPipeline]:
+def _pipeline_factory(
+    vector_store: InMemoryVectorStore | None = None,
+) -> Callable[[], IngestionPipeline]:
     def build() -> IngestionPipeline:
         registry = ParserRegistry()
         registry.register(MarkdownParser())
@@ -189,8 +192,7 @@ def test_stage_parse_records_single_completed_parse_stage(
     result = celery_tasks.stage_parse(payload)
     updated_task = IngestionTask.model_validate(result["task"])
     parse_records = [
-        record for record in updated_task.stages
-        if record.stage == IngestionStage.PARSING
+        record for record in updated_task.stages if record.stage == IngestionStage.PARSING
     ]
 
     assert len(parse_records) == 1

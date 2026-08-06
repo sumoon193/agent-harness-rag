@@ -8,6 +8,7 @@ Celery 阶段级入库 tasks。
 - 每个 task 自动重试 max_retries=2 次
 - 最终失败后更新 Redis 中的 task 状态为 failed
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +25,12 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 2
 
 
+@celery_app.task(name="system.ping")
+def system_ping(nonce: str) -> dict[str, str]:
+    """真实 broker/worker/result-backend 往返探针。"""
+    return {"status": "ok", "nonce": nonce}
+
+
 def _run_async(coro):
     """在同步 Celery worker 中执行 async 函数。"""
     return asyncio.run(coro)
@@ -31,8 +38,8 @@ def _run_async(coro):
 
 def _save_task_state(task_id: str, task_data: dict) -> None:
     """把 task 状态写回 task store，并在 full mode 同步 PostgreSQL 快照。"""
-    from app.services.ingestion.worker import build_task_store
     from app.services.ingestion.task import IngestionTask
+    from app.services.ingestion.worker import build_task_store
 
     try:
         task = IngestionTask.model_validate(task_data)
@@ -71,9 +78,7 @@ def _save_task_state_to_postgres(task: Any) -> None:
                     total_chunks=task.total_chunks,
                     error_message=task.error_message,
                     error_code=task.error_code,
-                    stages_json=[
-                        stage.model_dump(mode="json") for stage in task.stages
-                    ],
+                    stages_json=[stage.model_dump(mode="json") for stage in task.stages],
                 )
 
         _run_async(update_snapshot())
@@ -88,12 +93,14 @@ def _save_task_state_to_postgres(task: Any) -> None:
 def _build_pipeline():
     """构建入库 pipeline（每个 task 独立构建，避免跨进程共享）。"""
     from app.services.ingestion.worker import build_pipeline
+
     return build_pipeline()
 
 
 def _build_storage():
     """构建存储后端。"""
     from app.services.ingestion.worker import build_storage
+
     return build_storage()
 
 
@@ -130,11 +137,15 @@ def stage_parse(self, payload: dict) -> dict:
 
         # 解析
         parsed_doc = _run_async(
-            pipeline._stage_parse(task, file_content, {
-                "tenant_id": job.tenant_id,
-                "department_id": job.department_id,
-                "visibility": job.visibility,
-            })
+            pipeline._stage_parse(
+                task,
+                file_content,
+                {
+                    "tenant_id": job.tenant_id,
+                    "department_id": job.department_id,
+                    "visibility": job.visibility,
+                },
+            )
         )
 
         # 清洗
@@ -152,7 +163,7 @@ def stage_parse(self, payload: dict) -> dict:
         logger.error("stage_parse_failed", extra={"task_id": task_id, "error": str(exc)})
         task.fail_stage(IngestionStage.PARSING, str(exc))
         _save_task_state(task_id, task.model_dump(mode="json"))
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc
 
 
 # ── Stage 2: 分块 ─────────────────────────────────────────────────────
@@ -181,6 +192,7 @@ def stage_chunk(self, prev_result: dict) -> dict:
         logger.info("stage_chunk_start", extra={"task_id": task_id})
 
         from app.services.ingestion.task import IngestionTask
+
         task = IngestionTask.model_validate(task_data)
 
         parsed_doc = ParsedDocument.model_validate(prev_result["parsed_doc_json"])
@@ -202,10 +214,11 @@ def stage_chunk(self, prev_result: dict) -> dict:
     except Exception as exc:
         logger.error("stage_chunk_failed", extra={"task_id": task_id, "error": str(exc)})
         from app.services.ingestion.task import IngestionTask
+
         task = IngestionTask.model_validate(task_data)
         task.fail_stage(IngestionStage.CHUNKING, str(exc))
         _save_task_state(task_id, task.model_dump(mode="json"))
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc
 
 
 # ── Stage 3: Embedding ────────────────────────────────────────────────
@@ -239,6 +252,7 @@ def stage_embed(self, prev_result: dict) -> dict:
 
         # 重建 chunks
         from app.schemas.chunk import ChunkCreate
+
         chunks = [ChunkCreate.model_validate(c) for c in prev_result["chunks_json"]]
 
         _run_async(pipeline._stage_embed(task, chunks))
@@ -260,7 +274,7 @@ def stage_embed(self, prev_result: dict) -> dict:
         task = IngestionTask.model_validate(task_data)
         task.fail_stage(IngestionStage.EMBEDDING, str(exc))
         _save_task_state(task_id, task.model_dump(mode="json"))
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc
 
 
 # ── Stage 4: 索引 ─────────────────────────────────────────────────────
@@ -289,11 +303,12 @@ def stage_index(self, prev_result: dict) -> dict:
         pipeline = _build_pipeline()
 
         from app.schemas.chunk import ChunkCreate
+
         chunks = [ChunkCreate.model_validate(c) for c in prev_result["chunks_json"]]
         embeddings = prev_result["embeddings_json"]
 
         # 注入 embeddings 到 chunk metadata
-        for chunk, emb in zip(chunks, embeddings):
+        for chunk, emb in zip(chunks, embeddings, strict=True):
             if not chunk.acl_metadata:
                 chunk.acl_metadata = {}
             chunk.acl_metadata["_embedding"] = emb
@@ -310,7 +325,7 @@ def stage_index(self, prev_result: dict) -> dict:
         task = IngestionTask.model_validate(task_data)
         task.fail_stage(IngestionStage.INDEXING, str(exc))
         _save_task_state(task_id, task.model_dump(mode="json"))
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc
 
 
 # ── Stage 5: 完成 ─────────────────────────────────────────────────────
@@ -379,4 +394,5 @@ def run_ingestion_task(payload: dict) -> dict:
     新版本请使用 dispatch_ingestion_chain()。
     """
     from app.services.ingestion.worker import run_ingestion_job_sync
+
     return run_ingestion_job_sync(payload)

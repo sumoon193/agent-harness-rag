@@ -1,7 +1,6 @@
 import subprocess
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 REQUIRED_SECTIONS = (
     "## 项目简介与适用场景",
@@ -24,8 +23,17 @@ REQUIRED_SECTIONS = (
 
 
 def test_public_repository_has_no_internal_governance_files() -> None:
-    forbidden = [".agent-governance", "AGENTS.md", "CLAUDE.md", "tools/governance", "tests/governance", ".github/workflows/governance.yml"]
-    result = subprocess.run(["git", "ls-files", "--", *forbidden], cwd=ROOT, check=True, capture_output=True, text=True)
+    forbidden = [
+        ".agent-governance",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "tools/governance",
+        "tests/governance",
+        ".github/workflows/governance.yml",
+    ]
+    result = subprocess.run(
+        ["git", "ls-files", "--", *forbidden], cwd=ROOT, check=True, capture_output=True, text=True
+    )
     assert result.stdout.strip() == ""
 
 

@@ -3,19 +3,21 @@ FastAPI 应用入口。
 
 挂载路由、注册异常处理器、配置中间件。
 """
+
 from __future__ import annotations
 
 import logging
 import uuid
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import approvals, agent_runs, cases, documents, eval_runs, health, protocols
-from app.api.devmate import router as devmate_router, webhook_router as devmate_webhook_router
+from app.api import agent_runs, approvals, cases, documents, eval_runs, health, protocols
+from app.api.devmate import router as devmate_router
+from app.api.devmate import webhook_router as devmate_webhook_router
 from app.api.errors import app_error_handler, generic_error_handler
 from app.config import get_settings
 from app.core.exceptions import AppError
@@ -41,6 +43,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if settings.app_mode == "full":
         from app.db.session import init_db
+
         await init_db()
         logger.info("full_mode_initialized")
 
