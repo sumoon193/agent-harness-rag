@@ -180,7 +180,14 @@ npm --prefix frontend run build
 $env:DEVMATE_BASE_URL = "http://127.0.0.1:8000"
 python .\scripts\devmate\live_smoke.py --component health
 python .\scripts\devmate\live_smoke.py --component model
+python .\scripts\devmate\live_smoke.py --component memory
+python .\scripts\devmate\live_smoke.py --component mcp
+python .\scripts\devmate\live_smoke.py --component queue
+python .\scripts\devmate\live_smoke.py --component otel
+python .\scripts\devmate\live_smoke.py --component ragas
 ```
+
+`memory` 会使用真实 PostgreSQL、Qwen Embedding 和 Milvus，验证记忆写入、租户隔离检索、主动遗忘及持久化状态，并在结束后清理临时数据。
 
 真实模型验证前设置：
 

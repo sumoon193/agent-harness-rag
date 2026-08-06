@@ -18,7 +18,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--component",
-        choices=("health", "model", "ragas", "queue", "otel", "mcp"),
+        choices=("health", "model", "ragas", "queue", "otel", "mcp", "memory"),
         default="health",
     )
     args = parser.parse_args(argv)
@@ -32,6 +32,8 @@ def main(argv: list[str] | None = None) -> int:
         return _otel_smoke()
     if args.component == "mcp":
         return _mcp_smoke()
+    if args.component == "memory":
+        return _memory_smoke()
     base = os.getenv("DEVMATE_BASE_URL", "").rstrip("/")
     if not base:
         print("BLOCKED: set DEVMATE_BASE_URL")
@@ -295,6 +297,145 @@ def _mcp_smoke() -> int:
         return 1
     except Exception as exc:  # noqa: BLE001
         print(f"FAILED: MCP persistence validation ({exc.__class__.__name__}: {exc})")
+        return 1
+
+
+def _memory_smoke() -> int:
+    api_key = os.getenv("QWEN_API_KEY", "").strip()
+    if not api_key:
+        print("BLOCKED: set QWEN_API_KEY")
+        return 2
+
+    project_root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(project_root))
+    postgres_url = os.getenv(
+        "POSTGRES_URL",
+        "postgresql://enterprisemind:change_me_local@127.0.0.1:5432/enterprisemind",
+    )
+    try:
+        from pymilvus.exceptions import MilvusException
+        from sqlalchemy import delete, select
+        from sqlalchemy.exc import InterfaceError, OperationalError, SQLAlchemyError
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.db.session import _build_url
+        from app.models.runtime import CaseRecord, EpisodicMemoryRecordORM
+        from app.services.ai.qwen import QwenEmbedder
+        from app.services.memory.milvus_index import MilvusMemorySemanticIndex
+        from app.services.memory.store import SqlAlchemyEpisodicMemoryStore
+
+        async def probe() -> None:
+            engine = create_async_engine(_build_url(postgres_url), pool_pre_ping=True)
+            factory = async_sessionmaker(engine, expire_on_commit=False)
+            smoke_id = uuid.uuid4().hex
+            tenant_id = f"memory-smoke-{smoke_id}"
+            other_tenant_id = f"memory-other-{smoke_id}"
+            case_id = f"case_{smoke_id[:12]}"
+            content = f"DevMate memory smoke marker {smoke_id}"
+            memory_id: str | None = None
+            index = MilvusMemorySemanticIndex(
+                embedder=QwenEmbedder(
+                    api_key=api_key,
+                    model=os.getenv("QWEN_EMBEDDING_MODEL", "text-embedding-v4"),
+                    dimension=int(os.getenv("EMBEDDING_DIM", "1024")),
+                    base_url=os.getenv(
+                        "QWEN_API_BASE_URL",
+                        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                    ),
+                ),
+                dimension=int(os.getenv("EMBEDDING_DIM", "1024")),
+                host=os.getenv("MILVUS_HOST", "127.0.0.1"),
+                port=int(os.getenv("MILVUS_PORT", "19530")),
+            )
+            try:
+                async with factory() as session, session.begin():
+                    session.add(
+                        CaseRecord(
+                            id=case_id,
+                            title="DevMate memory live smoke",
+                            tenant_id=tenant_id,
+                            subject_user_id="memory-smoke-user",
+                            status="active",
+                            version=0,
+                            active_run_id=None,
+                            execution_manifest={},
+                            policy_versions={},
+                            working_memory={},
+                        )
+                    )
+
+                store = SqlAlchemyEpisodicMemoryStore(factory, semantic_index=index)
+                record = await store.remember(
+                    tenant_id=tenant_id,
+                    case_id=case_id,
+                    memory_key="live-smoke",
+                    content=content,
+                    provenance_event_ids=[f"evt_{smoke_id[:16]}"],
+                    importance_score=0.9,
+                )
+                memory_id = record.id
+
+                async with factory() as session:
+                    persisted = await session.scalar(
+                        select(EpisodicMemoryRecordORM).where(
+                            EpisodicMemoryRecordORM.id == memory_id
+                        )
+                    )
+                if persisted is None or persisted.tenant_id != tenant_id:
+                    raise ValueError("memory was not persisted for the expected tenant")
+
+                own_results = await store.search(tenant_id=tenant_id, query=content)
+                other_results = await store.search(tenant_id=other_tenant_id, query=content)
+                if memory_id not in {item.id for item in own_results}:
+                    raise ValueError("memory was not recalled from the semantic index")
+                if memory_id in {item.id for item in other_results}:
+                    raise ValueError("memory crossed the tenant boundary")
+
+                await store.forget(memory_id, tenant_id=tenant_id)
+                if await store.search(tenant_id=tenant_id, query=content):
+                    raise ValueError("forgotten memory remained recallable")
+                async with factory() as session:
+                    status = await session.scalar(
+                        select(EpisodicMemoryRecordORM.status).where(
+                            EpisodicMemoryRecordORM.id == memory_id
+                        )
+                    )
+                if status != "deleted":
+                    raise ValueError("forgotten memory status was not persisted")
+            finally:
+                if memory_id is not None:
+                    await index.delete(memory_id=memory_id, tenant_id=tenant_id)
+                async with factory() as session, session.begin():
+                    await session.execute(
+                        delete(EpisodicMemoryRecordORM).where(
+                            EpisodicMemoryRecordORM.case_id == case_id
+                        )
+                    )
+                    await session.execute(delete(CaseRecord).where(CaseRecord.id == case_id))
+                await engine.dispose()
+
+        asyncio.run(probe())
+        print("PASSED: DevMate PostgreSQL and Qwen/Milvus tenant-scoped memory lifecycle")
+        return 0
+    except (OSError, OperationalError, InterfaceError) as exc:
+        print(f"BLOCKED: memory dependency unavailable ({exc.__class__.__name__})")
+        return 2
+    except MilvusException as exc:
+        message = str(exc).lower()
+        if any(token in message for token in ("connect", "unavailable", "timeout", "refused")):
+            print(f"BLOCKED: Milvus unavailable ({exc.__class__.__name__})")
+            return 2
+        print(f"FAILED: Milvus memory validation ({exc.__class__.__name__})")
+        return 1
+    except SQLAlchemyError as exc:
+        print(f"FAILED: memory PostgreSQL validation ({exc.__class__.__name__})")
+        return 1
+    except Exception as exc:  # noqa: BLE001
+        message = str(exc).lower()
+        if any(token in message for token in ("status=401", "status=403", "connection", "timeout")):
+            print(f"BLOCKED: memory provider unavailable ({exc.__class__.__name__})")
+            return 2
+        print(f"FAILED: memory lifecycle validation ({exc.__class__.__name__}: {exc})")
         return 1
 
 

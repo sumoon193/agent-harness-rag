@@ -52,3 +52,10 @@ def test_mcp_component_is_dispatchable(monkeypatch) -> None:
     monkeypatch.setattr(module, "_mcp_smoke", lambda: 0, raising=False)
 
     assert module.main(["--component", "mcp"]) == 0
+
+
+def test_memory_component_is_dispatchable(monkeypatch) -> None:
+    module = _module()
+    monkeypatch.setattr(module, "_memory_smoke", lambda: 0, raising=False)
+
+    assert module.main(["--component", "memory"]) == 0
