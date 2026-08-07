@@ -1,3 +1,4 @@
+import http.client
 import importlib.util
 from pathlib import Path
 
@@ -45,6 +46,18 @@ def test_otel_component_is_dispatchable(monkeypatch) -> None:
     monkeypatch.setattr(module, "_otel_smoke", lambda: 0, raising=False)
 
     assert module.main(["--component", "otel"]) == 0
+
+
+def test_otel_smoke_returns_blocked_when_health_connection_closes(monkeypatch) -> None:
+    module = _module()
+    monkeypatch.setenv("PHOENIX_ENDPOINT", "http://phoenix.test:6006")
+
+    def closed_connection(*_args, **_kwargs):
+        raise http.client.RemoteDisconnected("phoenix closed connection")
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", closed_connection)
+
+    assert module.main(["--component", "otel"]) == 2
 
 
 def test_mcp_component_is_dispatchable(monkeypatch) -> None:

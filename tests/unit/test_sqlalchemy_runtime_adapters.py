@@ -231,3 +231,88 @@ async def test_sql_episodic_memory_persists_expiry_and_access_stats(
 
     again = SqlAlchemyEpisodicMemoryStore(session_factory, clock=clock)
     assert (await again.get(expiring.id, tenant_id="tenant_a")).status == MemoryStatus.EXPIRED
+
+
+@pytest.mark.asyncio
+async def test_sql_memory_expiry_propagates_to_semantic_index(session_factory) -> None:
+    class RecordingMemoryIndex:
+        def __init__(self) -> None:
+            self.deleted: list[tuple[str, str]] = []
+
+        async def upsert(self, *, memory_id: str, tenant_id: str, content: str) -> None:
+            return None
+
+        async def search(self, *, tenant_id: str, query: str, limit: int):
+            return []
+
+        async def delete(self, *, memory_id: str, tenant_id: str) -> None:
+            self.deleted.append((memory_id, tenant_id))
+
+    clock = FakeClock(datetime(2026, 8, 6, tzinfo=UTC))
+    index = RecordingMemoryIndex()
+    store = SqlAlchemyEpisodicMemoryStore(
+        session_factory,
+        clock=clock,
+        semantic_index=index,
+    )
+    record = await store.remember(
+        tenant_id="tenant_a",
+        case_id="case_001",
+        memory_key="policy.temporary",
+        content="temporary policy",
+        provenance_event_ids=["evt_expire"],
+        ttl_seconds=60,
+    )
+
+    clock.advance(seconds=61)
+    expired = await store.get(record.id, tenant_id="tenant_a")
+
+    assert expired.status == MemoryStatus.EXPIRED
+    assert index.deleted == [(record.id, "tenant_a")]
+
+
+@pytest.mark.asyncio
+async def test_sql_memory_retries_semantic_delete_after_transient_failure(
+    session_factory,
+) -> None:
+    class FlakyDeletionIndex:
+        def __init__(self) -> None:
+            self.attempts = 0
+            self.deleted: list[tuple[str, str]] = []
+
+        async def upsert(self, *, memory_id: str, tenant_id: str, content: str) -> None:
+            return None
+
+        async def search(self, *, tenant_id: str, query: str, limit: int):
+            return []
+
+        async def delete(self, *, memory_id: str, tenant_id: str) -> None:
+            self.attempts += 1
+            if self.attempts == 1:
+                raise RuntimeError("transient semantic index failure")
+            self.deleted.append((memory_id, tenant_id))
+
+    clock = FakeClock(datetime(2026, 8, 6, tzinfo=UTC))
+    index = FlakyDeletionIndex()
+    store = SqlAlchemyEpisodicMemoryStore(
+        session_factory,
+        clock=clock,
+        semantic_index=index,
+    )
+    record = await store.remember(
+        tenant_id="tenant_a",
+        case_id="case_001",
+        memory_key="policy.retry-delete",
+        content="temporary retry policy",
+        provenance_event_ids=["evt_expire"],
+        ttl_seconds=60,
+    )
+
+    clock.advance(seconds=61)
+    with pytest.raises(RuntimeError, match="transient semantic index failure"):
+        await store.get(record.id, tenant_id="tenant_a")
+
+    expired = await store.get(record.id, tenant_id="tenant_a")
+    assert expired.status == MemoryStatus.EXPIRED
+    assert index.attempts == 2
+    assert index.deleted == [(record.id, "tenant_a")]

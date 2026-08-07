@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import http.client
 import json
 import os
 import sys
@@ -187,8 +188,9 @@ def _otel_smoke() -> int:
             if response.status != 200:
                 print(f"FAILED: Phoenix health status={response.status}")
                 return 1
-    except urllib.error.URLError as exc:
-        print(f"BLOCKED: Phoenix unavailable ({exc.reason})")
+    except (urllib.error.URLError, http.client.RemoteDisconnected, TimeoutError) as exc:
+        detail = getattr(exc, "reason", exc.__class__.__name__)
+        print(f"BLOCKED: Phoenix unavailable ({detail})")
         return 2
 
     try:

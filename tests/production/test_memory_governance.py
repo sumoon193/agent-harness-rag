@@ -130,3 +130,58 @@ async def test_forget_propagates_to_semantic_index() -> None:
     await store.forget(record.id, tenant_id="tenant_a")
 
     assert index.deleted == [(record.id, "tenant_a")]
+
+
+@pytest.mark.asyncio
+async def test_expired_memory_is_deleted_from_semantic_index() -> None:
+    clock = FakeClock(datetime(2026, 8, 6, tzinfo=UTC))
+    index = RecordingSemanticIndex()
+    store = InMemoryEpisodicMemoryStore(clock=clock, semantic_index=index)
+    record = await store.remember(
+        tenant_id="tenant_a",
+        case_id="case_1",
+        memory_key="policy.temporary",
+        content="temporary policy",
+        provenance_event_ids=["evt_1"],
+        ttl_seconds=60,
+    )
+
+    clock.advance(seconds=61)
+    await store.search(tenant_id="tenant_a", query="temporary")
+
+    assert index.deleted == [(record.id, "tenant_a")]
+
+
+@pytest.mark.asyncio
+async def test_expired_memory_retries_semantic_delete_after_transient_failure() -> None:
+    class FlakyDeletionIndex(RecordingSemanticIndex):
+        def __init__(self) -> None:
+            super().__init__()
+            self.attempts = 0
+
+        async def delete(self, *, memory_id: str, tenant_id: str) -> None:
+            self.attempts += 1
+            if self.attempts == 1:
+                raise RuntimeError("transient semantic index failure")
+            await super().delete(memory_id=memory_id, tenant_id=tenant_id)
+
+    clock = FakeClock(datetime(2026, 8, 6, tzinfo=UTC))
+    index = FlakyDeletionIndex()
+    store = InMemoryEpisodicMemoryStore(clock=clock, semantic_index=index)
+    record = await store.remember(
+        tenant_id="tenant_a",
+        case_id="case_1",
+        memory_key="policy.retry-delete",
+        content="temporary retry policy",
+        provenance_event_ids=["evt_1"],
+        ttl_seconds=60,
+    )
+
+    clock.advance(seconds=61)
+    with pytest.raises(RuntimeError, match="transient semantic index failure"):
+        await store.get(record.id, tenant_id="tenant_a")
+
+    expired = await store.get(record.id, tenant_id="tenant_a")
+    assert expired.status == MemoryStatus.EXPIRED
+    assert index.attempts == 2
+    assert index.deleted == [(record.id, "tenant_a")]

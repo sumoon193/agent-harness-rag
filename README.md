@@ -15,6 +15,7 @@ DevMate 是一个面向企业制度和知识库场景的 Agent Runtime。它把�
 - 使用租户、部门和可见性字段执行 ACL 过滤，检索结果不会跨权限泄露。
 - Agent Run 提供计划、工具调用、审批、事件时间线和 SSE 流式输出。
 - Checkpoint 保存执行位置，Event Store 保存业务事件，Projection 提供查询视图。
+- 长期记忆带有 `tenant_id`、provenance、TTL、重要性评分和内容去重；注入内容进入隔离区，过期或删除会同步清理 Milvus 索引。
 - 支持沙箱工具、审批决策、UNKNOWN 状态和恢复演练。
 - 提供 MCP、A2A、运行指标和 GitHub Webhook 接口。
 
@@ -29,6 +30,10 @@ DevMate 是一个面向企业制度和知识库场景的 Agent Runtime。它把�
 ```
 
 `full` 模式下，PostgreSQL 保存文档、任务、运行和审计数据，Redis 用于 Celery 和缓存，Milvus 保存向量，Elasticsearch 保存关键词索引，MinIO 保存原始文件。模型只负责生成结构化计划或解释，不负责绕过服务端权限和状态校验。
+
+### 长期记忆边界
+
+记忆写入必须携带来源事件 ID；同一租户的相同内容会合并来源和重要性，不同租户即使内容相同也不会互相检索。TTL 到期后记忆进入 `EXPIRED`，主动遗忘进入 `DELETED`，两种状态都会触发语义索引删除。检测到 Prompt Injection 的内容只进入 `QUARANTINED`，不会参与回答召回。
 
 ### Checkpoint、Event Store 与 Projection
 
