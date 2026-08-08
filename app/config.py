@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     phoenix_endpoint: str = Field(default="http://localhost:6006")
     health_probe_timeout_seconds: float = Field(default=0.8)
 
+    oidc_issuer_url: str = Field(default="")
+    oidc_jwks_url: str = Field(default="")
+    oidc_audience: str = Field(default="devmate-web")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

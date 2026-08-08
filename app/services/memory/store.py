@@ -103,6 +103,12 @@ class EpisodicMemoryStore(Protocol):
         tenant_id: str,
     ) -> EpisodicMemoryRecord: ...
 
+    async def list_records(
+        self,
+        *,
+        tenant_id: str,
+    ) -> list[EpisodicMemoryRecord]: ...
+
 
 class InMemoryEpisodicMemoryStore:
     """隔离租户、保留 provenance 并支持 quarantine/forget 的内存实现。"""
@@ -257,6 +263,26 @@ class InMemoryEpisodicMemoryStore:
         ):
             await self._semantic_index.delete(memory_id=memory_id, tenant_id=tenant_id)
         return record.model_copy(deep=True)
+
+    async def list_records(
+        self,
+        *,
+        tenant_id: str,
+    ) -> list[EpisodicMemoryRecord]:
+        """列出当前租户记忆，包含隔离、过期和已删除状态。"""
+        now = self._clock.now()
+        records: list[EpisodicMemoryRecord] = []
+        for record in self._records.values():
+            if record.tenant_id != tenant_id:
+                continue
+            expired = self._expire_if_needed(record, now)
+            if expired and self._semantic_index is not None:
+                await self._semantic_index.delete(
+                    memory_id=record.id,
+                    tenant_id=tenant_id,
+                )
+            records.append(record.model_copy(deep=True))
+        return sorted(records, key=lambda record: (record.created_at, record.id), reverse=True)
 
     @staticmethod
     def _expire_if_needed(record: EpisodicMemoryRecord, now: datetime) -> bool:
@@ -506,6 +532,39 @@ class SqlAlchemyEpisodicMemoryStore:
         ):
             await self._semantic_index.delete(memory_id=memory_id, tenant_id=tenant_id)
         return result
+
+    async def list_records(
+        self,
+        *,
+        tenant_id: str,
+    ) -> list[EpisodicMemoryRecord]:
+        """从持久化存储读取租户记忆，并同步 TTL 过期状态。"""
+        now = self._clock.now()
+        expired_ids: list[str] = []
+        async with self._sessions() as session, session.begin():
+            records = list(
+                (
+                    await session.scalars(
+                        select(EpisodicMemoryRecordORM)
+                        .where(EpisodicMemoryRecordORM.tenant_id == tenant_id)
+                        .order_by(EpisodicMemoryRecordORM.created_at.desc())
+                    )
+                ).all()
+            )
+            for record in records:
+                expires_at = _as_utc(record.expires_at)
+                if (
+                    record.status == MemoryStatus.ACTIVE.value
+                    and expires_at is not None
+                    and expires_at <= now
+                ):
+                    record.status = MemoryStatus.EXPIRED.value
+                    record.updated_at = now
+                    expired_ids.append(record.id)
+        if self._semantic_index is not None:
+            for memory_id in expired_ids:
+                await self._semantic_index.delete(memory_id=memory_id, tenant_id=tenant_id)
+        return [self._from_record(record) for record in records]
 
     @staticmethod
     async def _authorized(

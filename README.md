@@ -99,17 +99,14 @@ npm --prefix frontend run dev
 
 ## Docker 或中间件启动方式
 
-### 启动完整依赖
+### 启动完整环境
 
 ```powershell
-Copy-Item .env.example .env
-docker compose up -d postgres redis minio minio-init etcd milvus elasticsearch
-$env:APP_MODE = "full"
-$env:GRAPH_CHECKPOINTER_BACKEND = "postgres"
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+$env:KEYCLOAK_ADMIN_PASSWORD = Read-Host "Keycloak 本地管理密码"
+docker compose --profile full up -d --build --wait
 ```
 
-首次启动后可使用 `docker compose ps` 检查依赖健康状态。真实密钥只放在本机 `.env` 或环境变量中。
+完整环境入口为 <http://127.0.0.1:3100>，Keycloak 为 <http://127.0.0.1:8180>。首次启动后，在 Keycloak 的 `devmate` Realm 创建本地用户并分配 `devmate-user`、`devmate-approver` 或 `devmate-admin` 角色。真实密钥只放在本机环境变量或未提交的 `.env` 中。
 
 ## 配置项和环境变量
 
@@ -129,6 +126,10 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 | `QWEN_CHAT_MODEL` | `qwen-plus` | 文本模型名称 |
 | `QWEN_EMBEDDING_MODEL` | `text-embedding-v4` | Embedding 模型 |
 | `QWEN_RERANK_MODEL` | `qwen3-rerank` | 重排模型 |
+| `OIDC_ISSUER_URL` | 空 | full 模式 Keycloak issuer |
+| `OIDC_JWKS_URL` | 空 | 容器内 JWKS 地址 |
+| `OIDC_AUDIENCE` | `devmate-web` | Access Token 受众 |
+| `KEYCLOAK_ADMIN_PASSWORD` | 必填 | 本地 Keycloak 管理密码，不得提交 |
 
 完整示例见 `.env.example`。
 
@@ -145,6 +146,9 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 | `POST` | `/agent-runs/{run_id}/approvals/{approval_id}` | 提交审批决定 |
 | `POST` | `/mcp` | Streamable HTTP MCP 接口 |
 | `GET` | `/.well-known/agent-card.json` | A2A Agent Card |
+| `GET` | `/memories` | 按租户读取长期记忆 |
+| `DELETE` | `/memories/{memory_id}` | 删除记忆并传播到语义索引 |
+| `GET` | `/infrastructure` | 读取真实探测或明确的 skipped 状态 |
 
 ## 请求示例与返回结果
 
@@ -152,9 +156,10 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8000/documents `
+  -H "Authorization: Bearer $env:ACCESS_TOKEN" `
   -F "file=@.\README.md" `
   -F "tenant_id=tenant_001" `
-  -F "department_id=dept_hr" `
+  -F "department_id=dept_engineering" `
   -F "visibility=department"
 ```
 
@@ -202,6 +207,16 @@ $env:QWEN_CHAT_MODEL = "qwen-plus"
 ```
 
 live smoke 退出码统一为：`0` 通过，`1` 已连接但验证失败，`2` 缺少服务、密钥或授权。缺少真实配置时只报告 `BLOCKED`，不会将离线结果当作真实通过。
+
+浏览器 E2E 需要在 `devmate` Realm 创建具有 `devmate-user` 和 `devmate-approver` 角色的本地用户：
+
+用户必须设置 `tenant_id` 属性；文档和记忆接口在 full 模式只接受 Token 中的租户。
+
+```powershell
+$env:DEVMATE_E2E_USERNAME = "本地测试用户名"
+$env:DEVMATE_E2E_PASSWORD = "本地测试密码"
+npm --prefix frontend run test:e2e:live
+```
 
 ## 常见问题与故障排查
 

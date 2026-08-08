@@ -164,6 +164,14 @@ async def upload_document(
     visibility: str = Form(default="department", description="可见性"),
     container: ServiceContainer = Depends(get_container),
 ) -> DocumentCreateResponse:
+    settings = get_settings()
+    if settings.app_mode == "full":
+        from app.services.security.oidc import current_tenant_id
+
+        if tenant_id != current_tenant_id():
+            from app.core.exceptions import PermissionError
+
+            raise PermissionError("Document tenant does not match authenticated tenant")
     # 检测文件类型
     filename = file.filename or "unknown.txt"
     mime_type = IngestionPipeline.detect_mime_type(filename)
@@ -189,7 +197,6 @@ async def upload_document(
     )
 
     # full 模式：持久化文档和任务到 PostgreSQL
-    settings = get_settings()
     if settings.app_mode == "full":
         await _persist_document_and_task(
             doc_id=doc_id,

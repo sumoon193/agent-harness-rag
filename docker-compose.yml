@@ -25,8 +25,29 @@ x-app-environment: &app-environment
   RAGAS_TIMEOUT_SECONDS: ${RAGAS_TIMEOUT_SECONDS:-300}
   RAGAS_LANGUAGE: ${RAGAS_LANGUAGE:-chinese}
   PHOENIX_ENDPOINT: http://phoenix:6006
+  OIDC_ISSUER_URL: http://localhost:8180/realms/devmate
+  OIDC_JWKS_URL: http://keycloak:8080/realms/devmate/protocol/openid-connect/certs
+  OIDC_AUDIENCE: devmate-web
 
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: devmate-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./docker/keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '200' <&3"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
   postgres:
     image: postgres:16-alpine
     container_name: enterprisemind-postgres
@@ -184,6 +205,8 @@ services:
         condition: service_healthy
       phoenix:
         condition: service_started
+      keycloak:
+        condition: service_healthy
     ports:
       - "8000:8000"
     healthcheck:
@@ -191,6 +214,21 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_KEYCLOAK_URL: http://localhost:8180
+        VITE_KEYCLOAK_REALM: devmate
+        VITE_KEYCLOAK_CLIENT_ID: devmate-web
+    container_name: devmate-frontend
+    profiles: ["full"]
+    ports:
+      - "3100:80"
+    depends_on:
+      api:
+        condition: service_healthy
 
   worker:
     build:

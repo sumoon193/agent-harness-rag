@@ -57,9 +57,11 @@ def test_readme_is_public_facing_and_portable() -> None:
         assert forbidden not in readme
     for required in (
         "python -m uvicorn app.main:app",
-        "docker compose up",
+        "docker compose --profile full up",
         "POST` | `/documents",
         "POST` | `/agent-runs",
+        "GET` | `/memories",
+        "OIDC_ISSUER_URL",
         "scripts\\devmate\\live_smoke.py",
         "Apache-2.0",
     ):

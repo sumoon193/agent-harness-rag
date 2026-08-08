@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import Any
 
 from celery import chain
@@ -20,6 +21,9 @@ from celery import chain
 from app.services.ingestion.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+
+_worker_loop: asyncio.AbstractEventLoop | None = None
+_worker_loop_pid: int | None = None
 
 # 最大重试次数
 MAX_RETRIES = 2
@@ -33,7 +37,20 @@ def system_ping(nonce: str) -> dict[str, str]:
 
 def _run_async(coro):
     """在同步 Celery worker 中执行 async 函数。"""
-    return asyncio.run(coro)
+    global _worker_loop, _worker_loop_pid
+
+    process_id = os.getpid()
+    if (
+        _worker_loop is None
+        or _worker_loop.is_closed()
+        or _worker_loop_pid != process_id
+    ):
+        if _worker_loop is not None and not _worker_loop.is_closed():
+            _worker_loop.close()
+        _worker_loop = asyncio.new_event_loop()
+        _worker_loop_pid = process_id
+        asyncio.set_event_loop(_worker_loop)
+    return _worker_loop.run_until_complete(coro)
 
 
 def _save_task_state(task_id: str, task_data: dict) -> None:
@@ -66,9 +83,14 @@ def _save_task_state_to_postgres(task: Any) -> None:
 
         async def update_snapshot() -> None:
             from app.db import crud as db
-            from app.db.session import get_session_factory
+            from app.db.session import get_session_factory, init_db
 
-            factory = get_session_factory()
+            try:
+                factory = get_session_factory()
+            except RuntimeError:
+                # Celery starts in a separate process from FastAPI's lifespan.
+                await init_db()
+                factory = get_session_factory()
             async with factory() as session:
                 await db.update_ingestion_task(
                     session,
